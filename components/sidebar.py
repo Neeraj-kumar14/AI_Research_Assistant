@@ -1,6 +1,7 @@
 import streamlit as st
 
 from utils.pdf_loader import load_pdf
+from utils.docx_loader import load_docx
 from utils.chunker import create_chunks
 from utils.embedding import create_embeddings
 from utils.vector_store import create_vector_store
@@ -17,14 +18,13 @@ from utils.pdf_export import export_notes_to_pdf
 def render_sidebar():
     with st.sidebar:
 
-        st.header("📄 Upload PDF")
+        st.header("📄 Upload Documents")
 
         uploaded_files = st.file_uploader(
-            "Choose PDF Files",
-            type="pdf",
+            "Choose PDF or DOCX Files",
+            type=["pdf", "docx"],
             accept_multiple_files=True
         )
-
         st.divider()
 
         st.subheader("🔍 Search Mode")
@@ -53,13 +53,19 @@ def render_sidebar():
                     or st.session_state.current_pdf_list != current_files
                 ):
 
-                with st.spinner("Processing PDF..."):
+                with st.spinner("Processing Documents..."):
 
                     all_pages = []
 
-                    for pdf in uploaded_files:
+                    for uploaded_file in uploaded_files:
 
-                        pages = load_pdf(pdf)
+                        if uploaded_file.name.lower().endswith(".pdf"):
+
+                            pages = load_pdf(uploaded_file)
+
+                        elif uploaded_file.name.lower().endswith(".docx"):
+
+                            pages = load_docx(uploaded_file)
 
                         all_pages.extend(pages)
 

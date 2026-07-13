@@ -8,6 +8,7 @@ from utils.retriever import retrieve_chunks
 from components.sidebar import render_sidebar
 from components.chat import render_chat
 from components.quiz import render_quiz
+from utils.docx_loader import load_docx
 from utils.llm import (
     ask_groq,
     ask_groq_web,
@@ -448,14 +449,13 @@ render_quiz()
 # -----------------------------
 # Chat Input
 # -----------------------------
-
-question = st.chat_input("Ask anything about your PDF...")
+question = st.chat_input("Ask anything about your document...")
 
 if question:
 
     if not st.session_state.pdf_loaded:
 
-        st.warning("Please upload a PDF first.")
+        st.warning("Please upload a PDF or DOCX file first.")
 
     else:
 
