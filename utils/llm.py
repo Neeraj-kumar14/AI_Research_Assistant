@@ -20,6 +20,51 @@ def get_groq_client() -> Groq:
     return Groq(api_key=api_key)
 
 
+def _condense_large_text(text: str, max_chars: int = 30000, chunk_chars: int = 12000, max_passes: int = 4):
+    """Map-reduce condensation for documents too large to fit in one
+    context window (this is what was causing the 400 'reduce the length
+    of the messages' error on big files).
+
+    If the text already fits, it's returned unchanged — no extra API
+    calls, no behavior change for normal-sized documents. If it doesn't
+    fit, it's split into chunks, each chunk gets condensed into a dense
+    summary, the results are joined back together, and the whole thing
+    repeats (up to max_passes) until it's small enough. This costs extra
+    Groq calls and time on very large documents, but trades that for
+    actually succeeding instead of failing outright.
+    """
+    passes = 0
+
+    while len(text) > max_chars and passes < max_passes:
+        chunks = [text[i:i + chunk_chars] for i in range(0, len(text), chunk_chars)]
+        condensed_parts = []
+
+        for chunk in chunks:
+            prompt = f"""Condense the following text into a dense, factual summary.
+Preserve all names, numbers, dates, definitions, and key details.
+Do not add commentary or opinions. Keep it well under the original length.
+
+Text:
+{chunk}
+"""
+            response = get_groq_client().chat.completions.create(
+                model=DEFAULT_MODEL,
+                messages=[{"role": "user", "content": prompt}],
+                temperature=0.2,
+            )
+            condensed_parts.append(response.choices[0].message.content or "")
+
+        text = "\n\n".join(condensed_parts)
+        passes += 1
+
+    # Safety net: if it's somehow still too big after max_passes, hard
+    # truncate rather than error out.
+    if len(text) > max_chars:
+        text = text[:max_chars]
+
+    return text
+
+
 def ask_groq(context: str, question: str, chat_history=None):
     history = ""
 
@@ -73,6 +118,8 @@ Current Question:
 # ----------------------------------------------------------------------------------
 
 def summarize_pdf(pdf_text: str):
+
+    pdf_text = _condense_large_text(pdf_text)
 
     prompt = f"""
 You are an AI Research Assistant.
@@ -194,6 +241,8 @@ def needs_rewrite(question: str) -> bool:
 # ----------------------------------------------------------------------------------------
 def generate_flashcards(pdf_text: str):
 
+    pdf_text = _condense_large_text(pdf_text)
+
     prompt = f"""
 You are an AI tutor.
 
@@ -250,6 +299,8 @@ PDF:
 # =======================================================================================
 
 def generate_quiz(pdf_text: str):
+
+    pdf_text = _condense_large_text(pdf_text)
 
     prompt = f"""
 You are an AI tutor.
@@ -308,6 +359,8 @@ PDF:
 # ======================================================================
 
 def generate_study_notes(pdf_text: str):
+
+    pdf_text = _condense_large_text(pdf_text)
 
     prompt = f"""
 You are an expert AI tutor.
