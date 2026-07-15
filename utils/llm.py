@@ -76,18 +76,31 @@ def _get_fallback_chain():
     return _fallback_chain
 
 
+# Without an explicit timeout, a stalled or slow-to-respond request can
+# hang far longer than expected with no error at all — from the UI this
+# is indistinguishable from a broken spinner. This bounds every single
+# Groq call so a bad request fails loudly (and moves to the next
+# fallback candidate) instead of hanging forever.
+REQUEST_TIMEOUT_SECONDS = 45
+
+
 def _is_rate_limit_error(exc) -> bool:
     msg = str(exc).lower()
     return "429" in str(exc) or "rate_limit" in msg or "rate limit" in msg
+
+
+def _is_timeout_error(exc) -> bool:
+    msg = str(exc).lower()
+    return "timeout" in msg or "timed out" in msg
 
 
 def chat_completion(messages, temperature=0.2):
     """Single entry point for every Groq call in this file. Walks the
     (api_key, model) fallback chain in order and returns the first
     successful response. Only raises once every candidate has been
-    exhausted by a rate limit; any non-rate-limit error (bad request,
-    invalid key, etc.) is raised immediately instead of masking a real
-    bug behind retries."""
+    exhausted by a rate limit or timeout; any non-rate-limit,
+    non-timeout error (bad request, invalid key, etc.) is raised
+    immediately instead of masking a real bug behind retries."""
     chain = _get_fallback_chain()
     last_error = None
     attempted = []
@@ -95,7 +108,7 @@ def chat_completion(messages, temperature=0.2):
     for api_key, model in chain:
         attempted.append(model)
         try:
-            client = Groq(api_key=api_key)
+            client = Groq(api_key=api_key, timeout=REQUEST_TIMEOUT_SECONDS)
             response = client.chat.completions.create(
                 model=model,
                 messages=messages,
@@ -104,7 +117,7 @@ def chat_completion(messages, temperature=0.2):
             return response.choices[0].message.content or ""
         except Exception as e:
             last_error = e
-            if _is_rate_limit_error(e):
+            if _is_rate_limit_error(e) or _is_timeout_error(e):
                 continue  # try the next (key, model) candidate
             raise  # real error — don't hide it behind fallback retries
 
@@ -122,7 +135,7 @@ def chat_completion(messages, temperature=0.2):
 # high value can trip 429s that chat_completion's fallback chain then
 # has to absorb. 5 is a safe default; drop to 2-3 if you see rate-limit
 # fallbacks kicking in during condensation.
-CONDENSE_MAX_WORKERS = 5
+CONDENSE_MAX_WORKERS = 3
 
 
 def _condense_chunk(chunk: str) -> str:

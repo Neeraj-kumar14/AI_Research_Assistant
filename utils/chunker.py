@@ -3,6 +3,18 @@ def create_chunks(pages, chunk_size=1800, overlap=150):
     with a smaller overlap ratio means far fewer total chunks to embed,
     which is the single biggest lever on processing time for big files.
     (Old defaults of 1000/200 produced ~30-40% more chunks than this.)"""
+    
+    total_pages = len(pages)
+
+    # if total_pages < 50:
+    #     chunk_size = 1200
+    #     overlap = 150
+    # elif total_pages < 300:
+    #     chunk_size = 1800
+    #     overlap = 150
+    # else:
+    #     chunk_size = 2500
+    #     overlap = 200
 
     chunks = []
 

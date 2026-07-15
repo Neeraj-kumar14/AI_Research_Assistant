@@ -1,5 +1,5 @@
 import os
-
+import time
 import numpy as np
 import streamlit as st
 from sentence_transformers import SentenceTransformer
@@ -22,7 +22,8 @@ def load_embedding_model():
     # embedding on larger chunk sets when there's no GPU.
     try:
         import torch
-        torch.set_num_threads(os.cpu_count() or 4)
+        cpu_count = os.cpu_count() or 4
+        torch.set_num_threads(min(6, max(1, cpu_count - 2)))
     except Exception:
         pass
 
@@ -33,7 +34,7 @@ def load_embedding_model():
 model = load_embedding_model()
 
 
-def create_embeddings(chunks, batch_size=128, progress_callback=None):
+def create_embeddings(chunks, batch_size=256, progress_callback=None):
     """Encode chunks in batches.
 
     batch_size=128 (up from the sentence-transformers default of 32) gives
@@ -52,12 +53,35 @@ def create_embeddings(chunks, batch_size=128, progress_callback=None):
     total = len(chunks)
     all_embeddings = []
 
+    # for start in range(0, total, batch_size):
+    #     batch = chunks[start:start + batch_size]
+    #     batch_embeddings = model.encode(
+    #         batch, batch_size=batch_size, show_progress_bar=False, convert_to_numpy=True
+    #     )
+    #     all_embeddings.append(batch_embeddings)
+    #     progress_callback(min(start + batch_size, total), total)
+
     for start in range(0, total, batch_size):
+
         batch = chunks[start:start + batch_size]
+
+        batch_start = time.perf_counter()
+
         batch_embeddings = model.encode(
-            batch, batch_size=batch_size, show_progress_bar=False, convert_to_numpy=True
+            batch,
+            batch_size=batch_size,
+            show_progress_bar=False,
+            convert_to_numpy=True,
         )
+
+        print(
+            f"Batch {start // batch_size + 1}: "
+            f"{len(batch)} chunks -> "
+            f"{time.perf_counter() - batch_start:.2f} sec"
+        )
+
         all_embeddings.append(batch_embeddings)
+
         progress_callback(min(start + batch_size, total), total)
 
     return np.vstack(all_embeddings)
