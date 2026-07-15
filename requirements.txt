@@ -1,3 +1,9 @@
+# CPU-only torch build. The default PyPI torch wheel bundles CUDA
+# libraries that are dead weight (and extra install time/disk) on a
+# host with no GPU at all — this line points pip at the CPU-only
+# wheels instead, which are noticeably smaller.
+--extra-index-url https://download.pytorch.org/whl/cpu
+
 altair==6.2.2
 annotated-doc==0.0.4
 annotated-types==0.7.0
@@ -12,6 +18,8 @@ click==8.4.2
 colorama==0.4.6
 cryptography==49.0.0
 distro==1.9.0
+easyocr==1.7.2
+langdetect==1.0.9
 faiss-cpu==1.14.3
 filelock==3.29.4
 fsspec==2026.6.0
@@ -55,6 +63,7 @@ Pygments==2.20.0
 pymupdf==1.28.0
 python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
+python-docx==1.1.2
 python-multipart==0.0.32
 PyYAML==6.0.3
 referencing==0.37.0

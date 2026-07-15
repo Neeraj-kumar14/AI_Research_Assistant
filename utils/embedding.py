@@ -4,6 +4,8 @@ import numpy as np
 import streamlit as st
 from sentence_transformers import SentenceTransformer
 
+from utils.concurrency import cpu_job
+
 
 @st.cache_resource
 def load_embedding_model():
@@ -48,7 +50,10 @@ def create_embeddings(chunks, batch_size=256, progress_callback=None):
         return np.empty((0, model.get_sentence_embedding_dimension()), dtype="float32")
 
     if progress_callback is None:
-        return model.encode(chunks, batch_size=batch_size, show_progress_bar=False, convert_to_numpy=True)
+        # Gate against other concurrent users' embedding/OCR jobs — see
+        # utils/concurrency.py.
+        with cpu_job():
+            return model.encode(chunks, batch_size=batch_size, show_progress_bar=False, convert_to_numpy=True)
 
     total = len(chunks)
     all_embeddings = []
@@ -67,12 +72,16 @@ def create_embeddings(chunks, batch_size=256, progress_callback=None):
 
         batch_start = time.perf_counter()
 
-        batch_embeddings = model.encode(
-            batch,
-            batch_size=batch_size,
-            show_progress_bar=False,
-            convert_to_numpy=True,
-        )
+        # Gated per-batch (rather than for the whole document) so a
+        # large upload doesn't monopolize a CPU slot end-to-end —
+        # other users' batches/OCR jobs can interleave between ours.
+        with cpu_job():
+            batch_embeddings = model.encode(
+                batch,
+                batch_size=batch_size,
+                show_progress_bar=False,
+                convert_to_numpy=True,
+            )
 
         print(
             f"Batch {start // batch_size + 1}: "
