@@ -16,6 +16,7 @@ from utils.theme import inject_css, render_hero, render_feature_grid
 from components.sidebar import render_sidebar
 from components.chat import render_chat
 from components.quiz import render_quiz
+from components.quiz_setup import render_quiz_setup
 
 st.set_page_config(
     page_title="AI Research Assistant",
@@ -31,6 +32,10 @@ inject_css()
 defaults = {
     "messages": [],
     "quiz": None,
+    "quiz_stage": None,  # None | "setup" | "active"
+    "quiz_num_questions": 10,
+    "quiz_time_per_question": 0,  # seconds; 0 = no time limit
+    "quiz_question_start_time": None,
     "quiz_answers": {},
     "quiz_score": 0,
     "quiz_submitted": False,
@@ -93,25 +98,36 @@ render_sidebar()
 # Landing hero (only before a document is loaded, so the chat isn't
 # competing with the pitch once someone is actually using the tool)
 # -----------------------------
-if not st.session_state.pdf_loaded and not st.session_state.messages:
-    render_hero()
-    render_feature_grid()
-    st.markdown("")
+quiz_takeover = st.session_state.quiz_stage in ("setup", "active")
+
+if not quiz_takeover:
+    if not st.session_state.pdf_loaded and not st.session_state.messages:
+        render_hero()
+        render_feature_grid()
+        st.markdown("")
+
+    # -----------------------------
+    # Chat history
+    # -----------------------------
+    render_chat(st.session_state.messages)
 
 # -----------------------------
-# Chat history
+# Interactive quiz — takes over as its own full-width "slide" once the
+# user clicks Generate quiz in the sidebar, so it isn't competing with
+# the chat transcript underneath it.
 # -----------------------------
-render_chat(st.session_state.messages)
-
-# -----------------------------
-# Interactive quiz
-# -----------------------------
-render_quiz()
+if st.session_state.quiz_stage == "setup":
+    render_quiz_setup()
+elif st.session_state.quiz_stage == "active":
+    render_quiz()
 
 # -----------------------------
 # Chat input
 # -----------------------------
-question = st.chat_input("Ask anything about your document...")
+if not quiz_takeover:
+    question = st.chat_input("Ask anything about your document...")
+else:
+    question = None
 
 if question:
     if not st.session_state.pdf_loaded:
@@ -186,69 +202,3 @@ if question:
                 "web_sources": web_sources,
             }
         )
-
-
-
-# Start App
-#       │
-#       ▼
-# Import Libraries
-#       │
-#       ▼
-# Configure Streamlit
-#       │
-#       ▼
-# Initialize Session State
-#       │
-#       ▼
-# Load Sidebar
-#       │
-#       ▼
-# User Uploads PDF/DOCX
-#       │
-#       ▼
-# Create Embeddings
-#       │
-#       ▼
-# Store in FAISS Vector Database
-#       │
-#       ▼
-# User Asks Question
-#       │
-#       ▼
-# Check if Question Needs Rewriting
-#       │
-#       ▼
-# Rewrite Question (if needed)
-#       │
-#       ▼
-# Retrieve Relevant Chunks (RAG)
-#       │
-#       ▼
-# Search Mode?
-#  ┌──────────────┬──────────────┬──────────────┐
-#  │ PDF Only     │ Web Only     │ Hybrid       │
-#  │              │              │              │
-#  ▼              ▼              ▼
-# Groq         Web Search     Groq on PDF
-#                                 │
-#                                 ▼
-#                      If answer not found
-#                                 │
-#                                 ▼
-#                          Web Search + Groq
-#       │
-#       ▼
-# Display Answer + Source Cards
-#       │
-#       ▼
-# Store Chat History
-#       │
-#       ▼
-# If Session Idle > 30 min
-#       │
-#       ▼
-# Unload PDF & Vector Store
-#       │
-#       ▼
-# Keep Chat History

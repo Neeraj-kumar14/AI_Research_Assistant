@@ -369,14 +369,15 @@ PDF:
 
 # =======================================================================================
 
-def generate_quiz(pdf_text: str, language: str | None = None):
+def generate_quiz(pdf_text: str, language: str | None = None, num_questions: int = 10):
 
     pdf_text = _condense_large_text(pdf_text)
+    num_questions = max(1, min(int(num_questions), 25))
 
     prompt = f"""
 {_language_instruction(language)}You are an AI tutor.
 
-Generate exactly 10 multiple-choice questions from the PDF.
+Generate exactly {num_questions} multiple-choice questions from the PDF.
 
 Return ONLY valid JSON.
 

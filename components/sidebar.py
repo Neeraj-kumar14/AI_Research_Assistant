@@ -19,7 +19,7 @@ from utils.llm import (
     generate_study_notes,
 )
 from utils.pdf_export import export_notes_to_pdf
-from utils.theme import section_label, animated_loader
+from utils.theme import section_label
 from components.flashcards import parse_flashcards
 
 # Disk cache for processed documents. OCR + embedding on a large (20-50MB,
@@ -326,30 +326,7 @@ def render_sidebar():
                 st.rerun()
 
             if st.button("❓  Generate quiz", use_container_width=True):
-                loader = st.empty()
-                loader.markdown(
-                    animated_loader(
-                        ["Reading your document", "Identifying key concepts", "Drafting questions", "Finalizing quiz"]
-                    ),
-                    unsafe_allow_html=True,
-                )
-                try:
-                    quiz = generate_quiz(
-                        st.session_state.pdf_text,
-                        language=st.session_state.document_language,
-                    )
-                except Exception as e:
-                    loader.empty()
-                    st.error(f"Groq Error:\n\n{e}")
-                    st.stop()
-                loader.empty()
-
-                st.session_state.quiz = quiz
-                st.session_state.current_question = 0
-                st.session_state.quiz_answers = {}
-                st.session_state.quiz_score = 0
-                st.session_state.quiz_submitted = False
-                st.session_state.review_mode = False
+                st.session_state.quiz_stage = "setup"
                 st.rerun()
 
             st.divider()
@@ -359,10 +336,12 @@ def render_sidebar():
                 st.session_state.pdf_loaded = False
                 st.session_state.review_mode = False
                 st.session_state.quiz = None
+                st.session_state.quiz_stage = None
                 st.session_state.quiz_answers = {}
                 st.session_state.quiz_score = 0
                 st.session_state.quiz_submitted = False
                 st.session_state.current_question = 0
+                st.session_state.quiz_question_start_time = None
                 st.session_state.study_notes = None
 
                 for key in ["pdf_text", "chunks", "vector_store", "current_pdf_list"]:
