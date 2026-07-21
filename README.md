@@ -1,236 +1,71 @@
-# 🤖 AI Research Assistant (Hybrid RAG + Web Search)
-
-An AI-powered Research Assistant built with **Streamlit**, **Groq Llama 3.3 70B**, **Retrieval-Augmented Generation (RAG)**, **FAISS**, **Sentence Transformers**, and **Tavily Web Search**.
-
-The application allows users to upload one or multiple PDF documents, ask questions, generate AI-powered study materials, and automatically search the web whenever the uploaded documents don't contain the requested information.
-
+---
+title: AI Research Assistant
+emoji: 📚
+colorFrom: green
+colorTo: yellow
+sdk: streamlit
+sdk_version: "1.58.0"
+app_file: app.py
+pinned: false
 ---
 
-## 🚀 Features
+# AI Research Assistant
 
-- 📄 Multi-PDF Upload
-- 🤖 AI Chat with PDFs
-- 🧠 Conversation Memory
-- 🔄 Query Rewriting
-- 📚 Source Citations
-- 📑 PDF Summarization
-- 📝 AI Study Notes Generator
-- 🧠 Flashcard Generator
-- ❓ Interactive Quiz
-- 🏆 Quiz Evaluation & Review
-- 📥 Download Study Notes (PDF & Markdown)
-- 🌐 Hybrid Search (PDF + Web Search)
-- 🔍 Search Modes
-  - PDF Only
-  - Web Only
-  - Hybrid (Automatic Fallback)
-- ⚡ Powered by Groq Llama 3.3 70B
-- 🎨 Interactive Streamlit UI
+Chat with your PDF/DOCX documents — ask questions grounded in the source
+pages, generate study notes, flashcards, and quizzes, with automatic web
+fallback and OCR for scanned pages.
 
----
+## Setting up secrets (required before first run)
 
-# 📸 Application Screenshots
+This app needs API keys. **Never commit them to the repo** — on HF Spaces,
+set them under **Settings → Variables and secrets → New secret** instead:
 
-## 🏠 Home Screen
+| Secret name        | Required | Notes                                  |
+|---------------------|----------|-----------------------------------------|
+| `GROQ_API_KEY`       | Yes      | Primary Groq key                       |
+| `GROQ_API_KEY_2`     | No       | Extra fallback key (separate quota)    |
+| `GROQ_API_KEY_3`     | No       | Extra fallback key                     |
+| `GROQ_API_KEY_4`     | No       | Extra fallback key                     |
+| `TAVILY_API_KEY`     | Yes      | Web search fallback                    |
 
-![Home](assets/home.png)
+Secrets set this way are exposed to the running app as normal environment
+variables — `os.getenv(...)` picks them up automatically, no `.env` file
+needed in production. `.env` (or `_env`) is only for local development and
+must stay out of the repo (see `.gitignore` below).
 
----
+## Tuning for available resources (optional)
 
-## 📑 PDF Summary
+These all have working defaults; only set them if you need to raise or
+lower limits for your hosting tier:
 
-![Summary](assets/summary.png)
+| Variable                      | Default   | Purpose                                  |
+|--------------------------------|-----------|-------------------------------------------|
+| `MAX_PDF_PAGES`                 | 300       | Cap on pages processed per PDF upload      |
+| `MAX_OCR_PAGES`                 | 30        | Cap on scanned pages OCR'd per PDF upload  |
+| `MAX_DOCX_CHARS`                | 600000    | Cap on characters processed per DOCX       |
+| `SESSION_IDLE_TIMEOUT_SECONDS`  | 1800      | Idle time before a session's loaded doc is evicted from memory |
+| `CACHE_TTL_SECONDS`             | 604800    | Max age of a cached processed document (7 days) |
+| `MAX_CACHE_BYTES`               | 524288000 | Max total size of the on-disk document cache (500MB) |
+| `CPU_JOB_SLOTS`                 | 2         | Max concurrent embedding/OCR jobs across all users |
+| `EMBEDDING_MODEL`               | paraphrase-multilingual-MiniLM-L12-v2 | Sentence-transformers model |
+| `GROQ_MODEL_FALLBACKS`          | see `utils/llm.py` | Comma-separated Groq model fallback chain |
 
----
-
-## 📝 AI Study Notes
-
-![Notes](assets/notes.png)
-
----
-
-## 🧠 Flashcards
-
-![Flashcards](assets/flashcards.png)
-
----
-
-## ❓ Interactive Quiz
-
-![Quiz](assets/quiz_generation.png)
-
----
-
-## 🏆 Quiz Result
-
-![Quiz Result](assets/quiz_result.png)
-
----
-
-# 🛠 Tech Stack
-
-### Frontend
-
-- Streamlit
-
-### Backend
-
-- Python
-
-### AI & LLM
-
-- Groq API
-- Llama 3.3 70B Versatile
-
-### RAG
-
-- Sentence Transformers
-- FAISS
-
-### Web Search
-
-- Tavily Search API
-
-### PDF Processing
-
-- PyMuPDF
-
-### PDF Export
-
-- ReportLab
-
----
-
-# 📂 Project Structure
-
-```text
-AI_Research_Assistant/
-│
-├── app.py
-│
-├── components/
-│   ├── __init__.py
-│   ├── sidebar.py
-│   ├── chat.py
-│   ├── quiz.py
-│   └── study_tools.py
-│
-├── utils/
-│   ├── chunker.py
-│   ├── embedding.py
-│   ├── llm.py
-│   ├── pdf_export.py
-│   ├── pdf_loader.py
-│   ├── retriever.py
-│   ├── vector_store.py
-│   └── web_search.py
-│
-├── assets/
-├── README.md
-├── requirements.txt
-└── .gitignore
-```
-
----
-
-# ⚙️ Installation
-
-### 1. Clone the Repository
-
-```bash
-git clone https://github.com/your-username/AI_Research_Assistant.git
-```
-
-### 2. Navigate to the Project
-
-```bash
-cd AI_Research_Assistant
-```
-
-### 3. Create Virtual Environment
-
-```bash
-python -m venv venv
-```
-
-### 4. Activate Virtual Environment
-
-**Windows**
-
-```bash
-venv\Scripts\activate
-```
-
-**Linux / macOS**
-
-```bash
-source venv/bin/activate
-```
-
-### 5. Install Dependencies
+## Local development
 
 ```bash
 pip install -r requirements.txt
-```
-
-### 6. Create `.env` File
-
-```env
-GROQ_API_KEY=your_groq_api_key
-TAVILY_API_KEY=your_tavily_api_key
-```
-
-### 7. Run the Application
-
-```bash
+cp .env.example .env   # fill in your real keys, keep this file untracked
 streamlit run app.py
 ```
 
----
+## Notes on this deployment
 
-# 🎯 Search Modes
-
-The application supports three intelligent search modes:
-
-### 📄 PDF Only
-
-Answers are generated only from the uploaded PDF documents.
-
-### 🌐 Web Only
-
-Answers are generated only using Tavily Web Search.
-
-### 🤖 Hybrid (Recommended)
-
-The assistant first searches the uploaded PDF.
-
-If the answer is unavailable, it automatically searches the web and generates a response using the latest online information.
-
----
-
-# 🔮 Future Improvements
-
-- 🎙 Voice Chat
-- 🔊 Text-to-Speech
-- 📊 Image & Table Extraction
-- 📈 Research Report Generator
-- 🤖 Multi-LLM Support
-- 📤 Chat Export
-- ☁ Cloud Deployment
-- 👥 User Authentication
-
----
-
-# 👨‍💻 Author
-
-**Neeraj Kumar**
-
-B.Tech CSE (Artificial Intelligence & Machine Learning)
-
----
-
-## ⭐ Support
-
-If you found this project helpful, please consider giving it a ⭐ on GitHub.
-
-It helps others discover the project and motivates further development.
+- Runs CPU-only (no GPU) — torch is installed from the CPU wheel index in
+  `requirements.txt`.
+- `.study_cache/` on most free hosts sits on ephemeral storage and is wiped
+  on restarts/redeploys — it speeds up re-uploads of the same file within a
+  running instance, but isn't a permanent store.
+- Free CPU tiers have limited cores; heavy concurrent usage (many users
+  uploading large/scanned documents at once) will queue rather than fail,
+  via `CPU_JOB_SLOTS` — expect things to slow down under real load rather
+  than error out.

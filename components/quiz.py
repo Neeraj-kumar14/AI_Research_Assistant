@@ -70,11 +70,15 @@ def render_quiz():
     st.markdown(f"**{q['question']}**")
 
     st.markdown('<div class="quiz-option-row">', unsafe_allow_html=True)
-    selected = st.session_state.quiz_answers.get(current)
+    # Keyed by letter (A/B/C/D), set at click-time below — not by
+    # re-deriving the letter later via options.index(selected_text),
+    # which would silently misattribute the answer if a quiz ever has
+    # two identical option strings.
+    selected_letter = st.session_state.quiz_answers.get(current)
     letters = ["A", "B", "C", "D"]
 
     for letter, option in zip(letters, q["options"]):
-        is_selected = selected == option
+        is_selected = selected_letter == letter
         label = f"{'✓  ' if is_selected else ''}{letter}.  {option}"
         if st.button(
             label,
@@ -83,7 +87,7 @@ def render_quiz():
             type="primary" if is_selected else "secondary",
             disabled=st.session_state.quiz_submitted,
         ):
-            st.session_state.quiz_answers[current] = option
+            st.session_state.quiz_answers[current] = letter
             st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -116,15 +120,12 @@ def render_quiz():
 
 def _score_quiz():
     quiz = st.session_state.quiz
-    option_letters = ["A", "B", "C", "D"]
     score = 0
 
     for i, q in enumerate(quiz):
-        selected = st.session_state.quiz_answers.get(i)
-        if selected:
-            selected_letter = option_letters[q["options"].index(selected)]
-            if selected_letter == q["answer"]:
-                score += 1
+        selected_letter = st.session_state.quiz_answers.get(i)
+        if selected_letter and selected_letter == q["answer"]:
+            score += 1
 
     st.session_state.quiz_score = score
     st.session_state.quiz_submitted = True
@@ -161,7 +162,6 @@ def _render_results():
 
 def _render_review():
     quiz = st.session_state.quiz
-    option_letters = ["A", "B", "C", "D"]
 
     st.markdown('<div class="section-label">📖 Review</div>', unsafe_allow_html=True)
 
@@ -169,9 +169,8 @@ def _render_review():
         st.markdown('<div class="quiz-card">', unsafe_allow_html=True)
         st.markdown(f"**{i + 1}. {q['question']}**")
 
-        selected = st.session_state.quiz_answers.get(i)
-        if selected:
-            selected_letter = option_letters[q["options"].index(selected)]
+        selected_letter = st.session_state.quiz_answers.get(i)
+        if selected_letter:
             st.markdown(f"Your answer: **{selected_letter}** &nbsp;·&nbsp; Correct: **{q['answer']}**")
             if selected_letter == q["answer"]:
                 st.success("Correct")

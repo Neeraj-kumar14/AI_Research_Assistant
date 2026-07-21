@@ -220,12 +220,28 @@ Current Question:
 
 # --------------------------------------------------------------------------------------------------------
 
-def summarize_pdf(pdf_text: str):
+def _language_instruction(language: str | None) -> str:
+    """Build a language-enforcement instruction to prepend to a prompt.
+    Without this, the model tends to default to English regardless of
+    the source document's language — this is what makes summarize_pdf,
+    generate_flashcards, generate_quiz, and generate_study_notes
+    actually respond in the document's detected language instead."""
+    if not language or language == "Unknown":
+        return ""
+    return (
+        f"IMPORTANT: Write your entire response in {language}, matching "
+        f"the language of the source document. Do not translate or "
+        f"switch to English, even for headings — only the exact "
+        f"Markdown formatting symbols (e.g. #, ##, **, ---) stay as-is.\n\n"
+    )
+
+
+def summarize_pdf(pdf_text: str, language: str | None = None):
 
     pdf_text = _condense_large_text(pdf_text)
 
     prompt = f"""
-You are an AI Research Assistant.
+{_language_instruction(language)}You are an AI Research Assistant.
 
 Summarize the following PDF.
 
@@ -304,12 +320,12 @@ def needs_rewrite(question: str) -> bool:
 
 # ----------------------------------------------------------------------------------------
 
-def generate_flashcards(pdf_text: str):
+def generate_flashcards(pdf_text: str, language: str | None = None):
 
     pdf_text = _condense_large_text(pdf_text)
 
     prompt = f"""
-You are an AI tutor.
+{_language_instruction(language)}You are an AI tutor.
 
 Generate 10 high-quality flashcards from the PDF.
 
@@ -353,12 +369,12 @@ PDF:
 
 # =======================================================================================
 
-def generate_quiz(pdf_text: str):
+def generate_quiz(pdf_text: str, language: str | None = None):
 
     pdf_text = _condense_large_text(pdf_text)
 
     prompt = f"""
-You are an AI tutor.
+{_language_instruction(language)}You are an AI tutor.
 
 Generate exactly 10 multiple-choice questions from the PDF.
 
@@ -403,12 +419,12 @@ PDF:
 
 # ======================================================================
 
-def generate_study_notes(pdf_text: str):
+def generate_study_notes(pdf_text: str, language: str | None = None):
 
     pdf_text = _condense_large_text(pdf_text)
 
     prompt = f"""
-You are an expert AI tutor.
+{_language_instruction(language)}You are an expert AI tutor.
 
 Create high-quality study notes from the following PDF.
 

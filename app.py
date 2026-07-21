@@ -1,3 +1,6 @@
+import os
+import time
+
 import streamlit as st
 
 from utils.embedding import model
@@ -43,6 +46,43 @@ defaults = {
 for key, value in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = value
+
+# -----------------------------
+# Idle-session eviction
+#
+# Streamlit already frees a session's memory when its browser tab
+# actually closes, so the real gap is a tab left OPEN but idle — its
+# vector store + chunks (often the biggest objects per session) sit in
+# RAM the whole time, and with many concurrent users this adds up on a
+# free/shared host. Since Python here only runs when a rerun happens,
+# "idle time" is measured between reruns: each run stamps last_active,
+# and the next run (whenever that happens, even hours later) checks
+# the gap and evicts the heavy state if it's stale, before rendering
+# anything that would depend on it. Chat history is intentionally kept
+# — only the loaded-document state is cleared, since the on-disk cache
+# in components/sidebar.py means a re-upload of the same file is fast.
+# Override via SESSION_IDLE_TIMEOUT_SECONDS env var.
+SESSION_IDLE_TIMEOUT_SECONDS = int(os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", str(30 * 60)))
+
+now = time.time()
+last_active = st.session_state.get("last_active")
+
+if (
+    last_active is not None
+    and (now - last_active) > SESSION_IDLE_TIMEOUT_SECONDS
+    and st.session_state.get("pdf_loaded")
+):
+    for key in ["vector_store", "chunks", "pdf_text", "pages", "current_pdf_list"]:
+        st.session_state.pop(key, None)
+    st.session_state.pdf_loaded = False
+    st.session_state.document_language = None
+    st.info(
+        "Your document was unloaded after a period of inactivity to free up "
+        "memory. Please re-upload it — if it's the same file, it'll load "
+        "quickly from cache."
+    )
+
+st.session_state.last_active = now
 
 # -----------------------------
 # Sidebar
@@ -125,11 +165,90 @@ if question:
             from components.chat import render_source_cards
             render_source_cards(sources, web_sources)
 
+        # Only "source" and "page" are ever read back from stored
+        # sources (see components/chat.py render_source_cards) — the
+        # full chunk text isn't needed again, but was previously kept
+        # in session_state for the life of the session regardless.
+        # Trimming here means each question asked adds a few dozen
+        # bytes of citation metadata to memory instead of the full
+        # chunk text (up to ~1800 chars each, times k chunks, times
+        # every question) — meaningful over a long session.
+        stored_sources = (
+            [{"source": c["source"], "page": c["page"]} for c in sources]
+            if sources else sources
+        )
+
         st.session_state.messages.append(
             {
                 "role": "assistant",
                 "content": answer,
-                "sources": sources,
+                "sources": stored_sources,
                 "web_sources": web_sources,
             }
         )
+
+
+
+# Start App
+#       │
+#       ▼
+# Import Libraries
+#       │
+#       ▼
+# Configure Streamlit
+#       │
+#       ▼
+# Initialize Session State
+#       │
+#       ▼
+# Load Sidebar
+#       │
+#       ▼
+# User Uploads PDF/DOCX
+#       │
+#       ▼
+# Create Embeddings
+#       │
+#       ▼
+# Store in FAISS Vector Database
+#       │
+#       ▼
+# User Asks Question
+#       │
+#       ▼
+# Check if Question Needs Rewriting
+#       │
+#       ▼
+# Rewrite Question (if needed)
+#       │
+#       ▼
+# Retrieve Relevant Chunks (RAG)
+#       │
+#       ▼
+# Search Mode?
+#  ┌──────────────┬──────────────┬──────────────┐
+#  │ PDF Only     │ Web Only     │ Hybrid       │
+#  │              │              │              │
+#  ▼              ▼              ▼
+# Groq         Web Search     Groq on PDF
+#                                 │
+#                                 ▼
+#                      If answer not found
+#                                 │
+#                                 ▼
+#                          Web Search + Groq
+#       │
+#       ▼
+# Display Answer + Source Cards
+#       │
+#       ▼
+# Store Chat History
+#       │
+#       ▼
+# If Session Idle > 30 min
+#       │
+#       ▼
+# Unload PDF & Vector Store
+#       │
+#       ▼
+# Keep Chat History

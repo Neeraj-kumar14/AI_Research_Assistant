@@ -29,6 +29,58 @@ from components.flashcards import parse_flashcards
 # redoing OCR and re-embedding everything.
 CACHE_DIR = ".study_cache"
 
+# Without any eviction, this directory grows by one .pkl per unique
+# file ever uploaded, forever — on a free host with limited disk this
+# eventually fills up and every write starts failing. Two independent
+# limits keep it bounded:
+#   - CACHE_TTL_SECONDS: delete entries older than this regardless of size
+#   - MAX_CACHE_BYTES: if still over this after the TTL sweep, delete the
+#     least-recently-used entries (oldest access time first) until under it
+# Both are best-effort housekeeping, run right before every new write —
+# cheap, since it only runs exactly when the cache is about to grow.
+CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))  # 7 days
+MAX_CACHE_BYTES = int(os.getenv("MAX_CACHE_BYTES", str(500 * 1024 * 1024)))  # 500 MB
+
+
+def _cleanup_cache():
+    if not os.path.isdir(CACHE_DIR):
+        return
+
+    now = time.time()
+    entries = []
+
+    for name in os.listdir(CACHE_DIR):
+        path = os.path.join(CACHE_DIR, name)
+        try:
+            stat = os.stat(path)
+        except OSError:
+            continue
+
+        # Expired by age — remove outright.
+        if (now - stat.st_mtime) > CACHE_TTL_SECONDS:
+            try:
+                os.remove(path)
+            except OSError:
+                pass
+            continue
+
+        entries.append((path, stat.st_mtime, stat.st_size))
+
+    # If still over the size budget, evict oldest (by mtime) first —
+    # a simple LRU-by-write-time, good enough for a speed-optimization
+    # cache where losing an entry just means one slow re-process later.
+    total_size = sum(size for _, _, size in entries)
+    if total_size > MAX_CACHE_BYTES:
+        entries.sort(key=lambda e: e[1])  # oldest first
+        for path, _, size in entries:
+            if total_size <= MAX_CACHE_BYTES:
+                break
+            try:
+                os.remove(path)
+                total_size -= size
+            except OSError:
+                pass
+
 
 def _cache_key(uploaded_files):
     h = hashlib.md5()
@@ -48,13 +100,17 @@ def _load_from_cache(key):
         return None
     try:
         with open(path, "rb") as f:
-            return pickle.load(f)
+            data = pickle.load(f)
+        os.utime(path, None)  # mark as recently used, so TTL/LRU eviction
+                               # doesn't remove an entry that's still active
+        return data
     except Exception:
         return None
 
 
 def _save_to_cache(key, data):
     os.makedirs(CACHE_DIR, exist_ok=True)
+    _cleanup_cache()
     try:
         with open(_cache_path(key), "wb") as f:
             pickle.dump(data, f)
@@ -207,7 +263,10 @@ def render_sidebar():
             if st.button("📑  Summarize document", use_container_width=True):
                 with st.spinner("Generating summary..."):
                     try:
-                        summary = summarize_pdf(st.session_state.pdf_text)
+                        summary = summarize_pdf(
+                            st.session_state.pdf_text,
+                            language=st.session_state.document_language,
+                        )
                     except Exception as e:
                         st.error(f"Groq Error:\n\n{e}")
                         st.stop()
@@ -218,7 +277,10 @@ def render_sidebar():
 
             if st.button("📝  Generate study notes", use_container_width=True):
                 with st.spinner("Generating study notes..."):
-                    notes = generate_study_notes(st.session_state.pdf_text)
+                    notes = generate_study_notes(
+                        st.session_state.pdf_text,
+                        language=st.session_state.document_language,
+                    )
                     st.session_state.study_notes = notes
 
                 st.session_state.messages.append({"role": "user", "content": "📝 Generate Study Notes"})
@@ -246,7 +308,10 @@ def render_sidebar():
 
             if st.button("🧠  Generate flashcards", use_container_width=True):
                 with st.spinner("Generating flashcards..."):
-                    flashcards_raw = generate_flashcards(st.session_state.pdf_text)
+                    flashcards_raw = generate_flashcards(
+                        st.session_state.pdf_text,
+                        language=st.session_state.document_language,
+                    )
                     parsed_cards = parse_flashcards(flashcards_raw)
 
                 st.session_state.messages.append({"role": "user", "content": "🧠 Generate Flashcards"})
@@ -269,7 +334,10 @@ def render_sidebar():
                     unsafe_allow_html=True,
                 )
                 try:
-                    quiz = generate_quiz(st.session_state.pdf_text)
+                    quiz = generate_quiz(
+                        st.session_state.pdf_text,
+                        language=st.session_state.document_language,
+                    )
                 except Exception as e:
                     loader.empty()
                     st.error(f"Groq Error:\n\n{e}")

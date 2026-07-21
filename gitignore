@@ -1,0 +1,22 @@
+# Secrets — never commit real keys. Use HF Spaces "Variables and secrets"
+# in production; keep only .env.example (with placeholders) in the repo.
+.env
+_env
+*.env
+!.env.example
+
+# Local document cache — regenerated automatically, and on most hosts
+# this directory lives on ephemeral storage anyway.
+.study_cache/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Streamlit
+.streamlit/secrets.toml
+
+# Generated study material exports
+study_notes.pdf
