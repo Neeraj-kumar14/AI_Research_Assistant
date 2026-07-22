@@ -16,7 +16,6 @@ from utils.llm import (
     summarize_pdf,
     generate_flashcards,
     generate_quiz,
-    generate_study_notes,
 )
 from utils.pdf_export import export_notes_to_pdf
 from utils.theme import section_label
@@ -275,15 +274,7 @@ def render_sidebar():
                 st.rerun()
 
             if st.button("📝  Generate study notes", use_container_width=True):
-                with st.spinner("Generating study notes..."):
-                    notes = generate_study_notes(
-                        st.session_state.pdf_text,
-                        language=st.session_state.document_language,
-                    )
-                    st.session_state.study_notes = notes
-
-                st.session_state.messages.append({"role": "user", "content": "📝 Generate Study Notes"})
-                st.session_state.messages.append({"role": "assistant", "content": notes})
+                st.session_state.notes_stage = "setup"
                 st.rerun()
 
             if st.session_state.get("study_notes"):
@@ -327,6 +318,8 @@ def render_sidebar():
                 st.session_state.current_question = 0
                 st.session_state.quiz_question_start_time = None
                 st.session_state.study_notes = None
+                st.session_state.notes_stage = None
+                st.session_state.notes_focus = ""
 
                 for key in ["pdf_text", "chunks", "vector_store", "current_pdf_list"]:
                     if key in st.session_state:

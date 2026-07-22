@@ -502,42 +502,83 @@ PDF:
 
 # ======================================================================
 
-def generate_study_notes(pdf_text: str, language: str | None = None):
+# Every possible notes section, in default order. Keys are what the
+# setup UI toggles on/off; values are the exact Markdown heading the
+# model is told to use, so the requested sections and the model's
+# output headings always match up.
+NOTE_SECTIONS = [
+    ("overview", "## Overview"),
+    ("concepts", "## Important Concepts"),
+    ("definitions", "## Definitions"),
+    ("key_points", "## Key Points"),
+    ("examples", "## Examples"),
+    ("advantages", "## Advantages"),
+    ("disadvantages", "## Disadvantages"),
+    ("applications", "## Applications"),
+    ("interview_questions", "## Interview Questions"),
+    ("common_mistakes", "## Common Mistakes"),
+    ("quick_revision", "## Quick Revision"),
+]
 
+_STYLE_INSTRUCTIONS = {
+    "Concise": (
+        "STYLE: Be concise. Use short bullet points only — no long "
+        "paragraphs. Every bullet should be one line where possible. Cut "
+        "anything that isn't essential for a quick review pass."
+    ),
+    "Detailed": (
+        "STYLE: Be thorough. Use clear explanatory prose plus bullet "
+        "points where useful. Cover the reasoning behind concepts, not "
+        "just the facts, so someone with no prior context can follow along."
+    ),
+    "Exam-focused": (
+        "STYLE: Optimize for exam preparation. Prioritize the facts, "
+        "definitions, and distinctions most likely to be tested. Under "
+        "each relevant section, call out likely exam angles or common "
+        "trick points. Keep 'Common Mistakes', 'Interview Questions', and "
+        "'Quick Revision' especially sharp and test-oriented."
+    ),
+}
+
+
+def generate_study_notes(
+    pdf_text: str,
+    language: str | None = None,
+    style: str = "Detailed",
+    sections: list[str] | None = None,
+    focus: str | None = None,
+):
     pdf_text = _condense_large_text(pdf_text)
+
+    # No selection (or None, for backward compatibility with older
+    # callers) means "everything" — the original fixed behavior.
+    selected_keys = set(sections) if sections else {key for key, _ in NOTE_SECTIONS}
+    headings = [heading for key, heading in NOTE_SECTIONS if key in selected_keys]
+    if not headings:
+        headings = [heading for _, heading in NOTE_SECTIONS]
+
+    style_instruction = _STYLE_INSTRUCTIONS.get(style, _STYLE_INSTRUCTIONS["Detailed"])
+    focus_instruction = (
+        f"\nFocus especially on this topic/section if present in the PDF: {focus}\n"
+        if focus else ""
+    )
+
+    sections_block = "\n\n".join(headings)
 
     prompt = f"""
 {_language_instruction(language)}You are an expert AI tutor.
 
 Create high-quality study notes from the following PDF.
 
-Output format:
+{style_instruction}
+{focus_instruction}
+Output format — use EXACTLY these headings, in this order, and no others:
 
 # 📘 Study Notes
 
-## Overview
+{sections_block}
 
-## Important Concepts
-
-## Definitions
-
-## Key Points
-
-## Examples
-
-## Advantages
-
-## Disadvantages
-
-## Applications
-
-## Interview Questions
-
-## Common Mistakes
-
-## Quick Revision
-
-Use proper markdown formatting.
+Use proper markdown formatting (headings, **bold**, bullet lists).
 
 PDF Content:
 

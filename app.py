@@ -10,6 +10,7 @@ from utils.llm import (
     ask_groq_web,
     rewrite_question,
     needs_rewrite,
+    NOTE_SECTIONS,
 )
 from utils.web_search import search_web
 from utils.theme import inject_css, render_hero, render_feature_grid
@@ -19,6 +20,7 @@ from components.quiz import render_quiz
 from components.quiz_setup import render_quiz_setup
 from components.flashcard_setup import render_flashcard_setup
 from components.flashcards import render_flashcard_deck
+from components.notes_setup import render_notes_setup
 
 st.set_page_config(
     page_title="AI Research Assistant",
@@ -66,6 +68,10 @@ defaults = {
     "search_mode": "Hybrid",
     "study_notes": None,
     "document_language": None,
+    "notes_stage": None,  # None | "setup"
+    "notes_style": "Detailed",  # "Concise" | "Detailed" | "Exam-focused"
+    "notes_sections": {key for key, _ in NOTE_SECTIONS},
+    "notes_focus": "",
 }
 for key, value in defaults.items():
     if key not in st.session_state:
@@ -119,7 +125,8 @@ render_sidebar()
 # -----------------------------
 quiz_takeover = st.session_state.quiz_stage in ("setup", "active")
 flashcard_takeover = st.session_state.flashcard_stage in ("setup", "active")
-takeover = quiz_takeover or flashcard_takeover
+notes_takeover = st.session_state.notes_stage == "setup"
+takeover = quiz_takeover or flashcard_takeover or notes_takeover
 
 if not takeover:
     if not st.session_state.pdf_loaded and not st.session_state.messages:
@@ -149,6 +156,12 @@ if st.session_state.flashcard_stage == "setup":
     render_flashcard_setup()
 elif st.session_state.flashcard_stage == "active":
     render_flashcard_deck()
+
+# -----------------------------
+# Study notes setup — floating modal dialog, same pattern as flashcards.
+# -----------------------------
+if st.session_state.notes_stage == "setup":
+    render_notes_setup()
 
 # -----------------------------
 # Chat input
