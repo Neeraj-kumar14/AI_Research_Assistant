@@ -38,17 +38,24 @@ and **Sentence-Transformers** (embeddings).
 |---|---|
 | ![Home](assets/home.png) | ![Summary](assets/summary.png) |
 
-| Notes | 
-|---|---|
-| ![Notes](assets/notes.png) |![Notes](assets/notes(1).png) |![Notes](assets/notes(2).png) |
+**Notes**
 
+| Notes | Notes | Notes |
+|---|---|---|
+| ![Notes](assets/notes.png) | ![Notes](assets/notes(1).png) | ![Notes](assets/notes(2).png) |
 
-| Quiz Result |
-|---|---|
-| ![Quiz setup](assets/quiz_setup.png) | ![Quiz Generation](assets/quiz_generation.png) | ![Quiz Result](assets/quiz_result.png) | ![Flashcards](assets/flashcards.png) |
+**Quiz**
 
-| Flashcards |
-![Flashcards Setup](assets/flashcards_setup.png) | ![Flashcards Question](assets/flashcards_question.png) | ![Flashcards answer](assets/flashcards_answer.png) | 
+| Quiz Setup | Quiz Generation | Quiz Result |
+|---|---|---|
+| ![Quiz Setup](assets/quiz_setup.png) | ![Quiz Generation](assets/quiz_generation.png) | ![Quiz Result](assets/quiz_result.png) |
+
+**Flashcards**
+
+| Overview | Setup | Question | Answer |
+|---|---|---|---|
+| ![Flashcards Setup](assets/flashcards_setup.png) | ![Flashcards Question](assets/flashcards_question.png) | ![Flashcards Answer](assets/flashcards_answer.png) |
+
 ## 🏗️ Tech Stack
 
 - **Frontend / App framework:** [Streamlit](https://streamlit.io/)
