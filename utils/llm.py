@@ -32,6 +32,8 @@ load_dotenv()
 # still surfaces immediately instead of being silently retried.
 # ---------------------------------------------------------------------------
 
+from utils.language_detector import detect_language
+
 DEFAULT_MODEL_FALLBACKS = "llama-3.3-70b-versatile,llama-3.1-8b-instant,openai/gpt-oss-120b"
 
 _fallback_chain = None  # built lazily, cached for the process lifetime
@@ -183,6 +185,55 @@ def _condense_large_text(text: str, max_chars: int = 30000, chunk_chars: int = 1
 
 # ----------------------------------------------------------------------------------
 
+def _question_language_instruction(question: str) -> str:
+    """Builds a hard, non-negotiable language instruction based on the
+    QUESTION itself, detected deterministically with langdetect — not left
+    to the model's own judgment. This is what actually fixes "always
+    answers in Hindi": previously the model only had a soft, wordy rule
+    to follow, and it kept getting pulled toward the PDF's language
+    (often Hindi) since the retrieved context sat right there in the
+    prompt. Pre-detecting the question's language and stating it as a
+    fact up front — before the model ever sees the context — makes the
+    answer language depend on what the user typed, not on the document.
+    """
+    q = (question or "").strip()
+
+    # Too short to detect reliably (e.g. "hi", "ok") — fall back to
+    # letting the model infer it itself rather than risk a wrong guess.
+    if len(q) < 2:
+        return (
+            "LANGUAGE RULE: Detect the language of the CURRENT QUESTION below "
+            "yourself, and write your entire answer in that exact language — "
+            "even if the Context/PDF or conversation history is in a "
+            "different language. Do not default to Hindi or English just "
+            "because the document is in that language.\n\n"
+        )
+
+    try:
+        detected = detect_language(q)
+    except Exception:
+        detected = "Unknown"
+
+    if not detected or detected == "Unknown":
+        return (
+            "LANGUAGE RULE: Detect the language of the CURRENT QUESTION below "
+            "yourself, and write your entire answer in that exact language — "
+            "even if the Context/PDF or conversation history is in a "
+            "different language. Do not default to Hindi or English just "
+            "because the document is in that language.\n\n"
+        )
+
+    return (
+        f"LANGUAGE RULE: The CURRENT QUESTION below is written in {detected}. "
+        f"You MUST write your ENTIRE answer in {detected}, using its native "
+        f"script. This applies no matter what language the Context/PDF or "
+        f"conversation history is in below — do not switch to the document's "
+        f"language, do not switch to Hindi, do not switch to English, unless "
+        f"{detected} literally is Hindi or English. Do not mix languages. "
+        f"Do not translate the answer afterward.\n\n"
+    )
+
+
 def ask_groq(context: str, question: str, chat_history=None):
     history = ""
 
@@ -192,18 +243,17 @@ def ask_groq(context: str, question: str, chat_history=None):
             history += f"{role}: {msg['content']}\n"
 
     prompt = f"""
-You are an AI Research Assistant.
+{_question_language_instruction(question)}You are an AI Research Assistant.
 
 Rules:
 1. Answer ONLY from the provided context.
 2. Never use your own knowledge.
-3. If the answer is not available in the context, reply:
-   "I couldn't find this information in the uploaded PDF."
-4. Detect the language of the user's question.
-5. Your response MUST be in the same language as the user's question.
-6. Do NOT translate the response into English.
-7. If the user's question is in Hindi, write the entire response in Hindi using Devanagari script.
-8. Follow these language rules even if the document is in another language, unless the user explicitly asks for translation.
+3. If the answer is not available in the context, reply with that same
+   message translated into the question's language (see LANGUAGE RULE
+   above), meaning: "I couldn't find this information in the uploaded PDF."
+4. Follow the LANGUAGE RULE above no matter what language the context,
+   the PDF, or the conversation history are in, unless the user
+   explicitly asks for a translation into another language.
 
 Conversation History:
 {history}
@@ -502,7 +552,7 @@ PDF Content:
 def ask_groq_web(context: str, question: str):
 
     prompt = f"""
-You are an AI Research Assistant.
+{_question_language_instruction(question)}You are an AI Research Assistant.
 
 Answer the user's question ONLY using the web search results below.
 
@@ -511,6 +561,8 @@ Rules:
 2. Use only the provided web context.
 3. Give a clear answer.
 4. Mention important details if available.
+5. Follow the LANGUAGE RULE above no matter what language the web
+   context is in, unless the user explicitly asks for a translation.
 
 Web Context:
 
