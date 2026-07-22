@@ -53,7 +53,7 @@ and **Sentence-Transformers** (embeddings).
 **Flashcards**
 
 | Setup | Question | Answer |
-|---|---|---|---|
+|---|---|---|
 | ![Flashcards Setup](assets/flashcards_setup.png) | ![Flashcards Question](assets/flashcards_question.png) | ![Flashcards Answer](assets/flashcards_answer.png) |
 
 ## 🏗️ Tech Stack
