@@ -17,6 +17,8 @@ from components.sidebar import render_sidebar
 from components.chat import render_chat
 from components.quiz import render_quiz
 from components.quiz_setup import render_quiz_setup
+from components.flashcard_setup import render_flashcard_setup
+from components.flashcards import render_flashcard_deck
 
 st.set_page_config(
     page_title="AI Research Assistant",
@@ -34,13 +36,30 @@ defaults = {
     "quiz": None,
     "quiz_stage": None,  # None | "setup" | "active"
     "quiz_num_questions": 10,
+    "quiz_difficulty": "Medium",
+    "quiz_timer_mode": "per_question",  # "per_question" | "total"
     "quiz_time_per_question": 0,  # seconds; 0 = no time limit
+    "quiz_total_minutes": 0,  # 0 = no time limit
+    "quiz_total_time_limit": 0,  # seconds, computed when the quiz starts
     "quiz_question_start_time": None,
+    "quiz_start_time": None,
+    "quiz_flagged": {},
     "quiz_answers": {},
     "quiz_score": 0,
     "quiz_submitted": False,
     "review_mode": False,
     "current_question": 0,
+    "flashcard_stage": None,  # None | "setup" | "active"
+    "flashcard_num": 10,
+    "flashcard_difficulty": "Medium",
+    "flashcard_focus": "",
+    "flashcards": None,
+    "flashcard_order": [],
+    "flashcard_current": 0,
+    "flashcard_known": {},
+    "flashcard_starred": {},
+    "flashcard_direction": "next",
+    "flashcard_view": "deck",
     "vector_store": None,
     "chunks": None,
     "pdf_loaded": False,
@@ -99,8 +118,10 @@ render_sidebar()
 # competing with the pitch once someone is actually using the tool)
 # -----------------------------
 quiz_takeover = st.session_state.quiz_stage in ("setup", "active")
+flashcard_takeover = st.session_state.flashcard_stage in ("setup", "active")
+takeover = quiz_takeover or flashcard_takeover
 
-if not quiz_takeover:
+if not takeover:
     if not st.session_state.pdf_loaded and not st.session_state.messages:
         render_hero()
         render_feature_grid()
@@ -122,9 +143,17 @@ elif st.session_state.quiz_stage == "active":
     render_quiz()
 
 # -----------------------------
+# Flashcard deck — same full-slide takeover pattern as the quiz.
+# -----------------------------
+if st.session_state.flashcard_stage == "setup":
+    render_flashcard_setup()
+elif st.session_state.flashcard_stage == "active":
+    render_flashcard_deck()
+
+# -----------------------------
 # Chat input
 # -----------------------------
-if not quiz_takeover:
+if not takeover:
     question = st.chat_input("Ask anything about your document...")
 else:
     question = None

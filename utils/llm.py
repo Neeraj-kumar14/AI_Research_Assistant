@@ -320,15 +320,35 @@ def needs_rewrite(question: str) -> bool:
 
 # ----------------------------------------------------------------------------------------
 
-def generate_flashcards(pdf_text: str, language: str | None = None):
+def generate_flashcards(
+    pdf_text: str,
+    language: str | None = None,
+    num_cards: int = 10,
+    difficulty: str = "Medium",
+    focus: str | None = None,
+):
 
     pdf_text = _condense_large_text(pdf_text)
+    num_cards = max(3, min(int(num_cards), 50))
+
+    if difficulty == "Mixed":
+        difficulty_instruction = (
+            "Vary the difficulty across the set: roughly a third easy (direct recall), "
+            "a third medium (requires connecting two facts), a third hard (requires "
+            "inference or synthesis across the document)."
+        )
+    else:
+        difficulty_instruction = f"Target difficulty: {difficulty}. Keep every question at this level."
+
+    focus_instruction = f"\nFocus especially on this topic/section if present in the PDF: {focus}\n" if focus else ""
 
     prompt = f"""
 {_language_instruction(language)}You are an AI tutor.
 
-Generate 10 high-quality flashcards from the PDF.
+Generate exactly {num_cards} high-quality flashcards from the PDF.
 
+{difficulty_instruction}
+{focus_instruction}
 Rules:
 - Use only the PDF content.
 - Make concise questions.
@@ -358,6 +378,7 @@ Format EXACTLY like this:
 Rules for formatting:
 - Put the answer on a new line below the question.
 - Never write the question and answer on the same line.
+- Produce exactly {num_cards} flashcards, no more, no fewer.
 
 PDF:
 
@@ -369,15 +390,26 @@ PDF:
 
 # =======================================================================================
 
-def generate_quiz(pdf_text: str, language: str | None = None, num_questions: int = 10):
+def generate_quiz(pdf_text: str, language: str | None = None, num_questions: int = 10, difficulty: str = "Medium"):
 
     pdf_text = _condense_large_text(pdf_text)
     num_questions = max(1, min(int(num_questions), 25))
+
+    if difficulty == "Mixed":
+        difficulty_instruction = (
+            "Vary the difficulty across the set: roughly a third easy (direct recall), "
+            "a third medium (requires connecting two facts), a third hard (requires "
+            "inference or synthesis across the document)."
+        )
+    else:
+        difficulty_instruction = f"Target difficulty: {difficulty}. Keep every question at this level."
 
     prompt = f"""
 {_language_instruction(language)}You are an AI tutor.
 
 Generate exactly {num_questions} multiple-choice questions from the PDF.
+
+{difficulty_instruction}
 
 Return ONLY valid JSON.
 

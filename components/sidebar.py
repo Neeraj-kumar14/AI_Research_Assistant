@@ -20,7 +20,6 @@ from utils.llm import (
 )
 from utils.pdf_export import export_notes_to_pdf
 from utils.theme import section_label
-from components.flashcards import parse_flashcards
 
 # Disk cache for processed documents. OCR + embedding on a large (20-50MB,
 # partly scanned) file can take a couple of minutes, so if the same file
@@ -307,22 +306,7 @@ def render_sidebar():
                 )
 
             if st.button("🧠  Generate flashcards", use_container_width=True):
-                with st.spinner("Generating flashcards..."):
-                    flashcards_raw = generate_flashcards(
-                        st.session_state.pdf_text,
-                        language=st.session_state.document_language,
-                    )
-                    parsed_cards = parse_flashcards(flashcards_raw)
-
-                st.session_state.messages.append({"role": "user", "content": "🧠 Generate Flashcards"})
-                st.session_state.messages.append(
-                    {
-                        "role": "assistant",
-                        "type": "flashcards",
-                        "content": parsed_cards,
-                        "raw": flashcards_raw,
-                    }
-                )
+                st.session_state.flashcard_stage = "setup"
                 st.rerun()
 
             if st.button("❓  Generate quiz", use_container_width=True):
