@@ -38,14 +38,17 @@ and **Sentence-Transformers** (embeddings).
 |---|---|
 | ![Home](assets/home.png) | ![Summary](assets/summary.png) |
 
-| Notes | Quiz |
+| Notes | 
 |---|---|
-| ![Notes](assets/notes.png) | ![Quiz Generation](assets/quiz_generation.png) |
+| ![Notes](assets/notes.png) |![Notes](assets/notes(1).png) |![Notes](assets/notes(2).png) |
 
-| Quiz Result | Flashcards |
+
+| Quiz Result |
 |---|---|
-| ![Quiz Result](assets/quiz_result.png) | ![Flashcards](assets/flashcards.png) |
+| ![Quiz setup](assets/quiz_setup.png) | ![Quiz Generation](assets/quiz_generation.png) | ![Quiz Result](assets/quiz_result.png) | ![Flashcards](assets/flashcards.png) |
 
+| Flashcards |
+![Flashcards Setup](assets/flashcards_setup.png) | ![Flashcards Question](assets/flashcards_question.png) | ![Flashcards answer](assets/flashcards_answer.png) | 
 ## 🏗️ Tech Stack
 
 - **Frontend / App framework:** [Streamlit](https://streamlit.io/)
