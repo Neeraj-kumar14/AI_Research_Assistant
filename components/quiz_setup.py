@@ -47,6 +47,11 @@ _SETUP_CSS = """
     color: #41507A;
     margin: 1.1rem 0 0.5rem 0;
 }
+.quiz-setup-hint {
+    color: #6B6455;
+    font-size: 0.78rem;
+    margin: -0.3rem 0 0.4rem 0;
+}
 .quiz-pill-row .stButton > button {
     border-radius: 999px !important;
     border: 1px solid #E4E0D4 !important;
@@ -77,6 +82,12 @@ _SETUP_CSS = """
 """
 
 _QUESTION_COUNTS = [5, 10, 15, 20]
+
+_TIMER_MODES = [
+    ("⏱ Per question", "per_question"),
+    ("⏳ Whole quiz", "total"),
+]
+
 _TIME_OPTIONS = [
     ("No limit", 0),
     ("15s / question", 15),
@@ -85,16 +96,35 @@ _TIME_OPTIONS = [
     ("60s / question", 60),
 ]
 
+# Whole-quiz timer, optional, capped at 2 hours (120 minutes) as requested.
+_TOTAL_TIME_OPTIONS = [
+    ("No limit", 0),
+    ("15 min", 15),
+    ("30 min", 30),
+    ("45 min", 45),
+    ("60 min", 60),
+    ("90 min", 90),
+    ("120 min", 120),
+]
+
 
 def render_quiz_setup():
     st.markdown(_SETUP_CSS, unsafe_allow_html=True)
+
+    # Defensive defaults, same reasoning as in quiz.py.
+    st.session_state.setdefault("quiz_timer_mode", "per_question")
+    st.session_state.setdefault("quiz_total_minutes", 0)
+    st.session_state.setdefault("quiz_total_time_limit", 0)
+    st.session_state.setdefault("quiz_flagged", {})
+    st.session_state.setdefault("quiz_visited", {})
+    st.session_state.setdefault("quiz_start_time", None)
 
     st.markdown('<div class="quiz-setup-slide">', unsafe_allow_html=True)
     st.markdown('<div class="quiz-setup-eyebrow">Quiz · Setup</div>', unsafe_allow_html=True)
     st.markdown('<div class="quiz-setup-title">Set up your quiz</div>', unsafe_allow_html=True)
     st.markdown(
-        '<div class="quiz-setup-sub">Choose how many questions and how much time '
-        'you want per question, then start whenever you\'re ready.</div>',
+        '<div class="quiz-setup-sub">Choose how many questions, whether you want a timer '
+        'per question or for the whole attempt, then start whenever you\'re ready.</div>',
         unsafe_allow_html=True,
     )
 
@@ -115,22 +145,62 @@ def render_quiz_setup():
                 st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
-    # ---- Time per question ----
-    st.markdown('<div class="quiz-setup-label">Time per question</div>', unsafe_allow_html=True)
+    # ---- Timer mode: per-question (existing) or whole-quiz (new) ----
+    st.markdown('<div class="quiz-setup-label">Timer</div>', unsafe_allow_html=True)
+    st.markdown('<div class="quiz-setup-hint">Optional — pick a limit per question, one limit for the '
+                'entire quiz (up to 2 hours), or leave both at "No limit".</div>', unsafe_allow_html=True)
     st.markdown('<div class="quiz-pill-row">', unsafe_allow_html=True)
-    cols = st.columns(len(_TIME_OPTIONS))
-    for col, (label, seconds) in zip(cols, _TIME_OPTIONS):
+    cols = st.columns(len(_TIMER_MODES))
+    for col, (label, mode) in zip(cols, _TIMER_MODES):
         with col:
-            is_selected = st.session_state.quiz_time_per_question == seconds
+            is_selected = st.session_state.quiz_timer_mode == mode
             if st.button(
                 label,
-                key=f"qtime_{seconds}",
+                key=f"qtimermode_{mode}",
                 use_container_width=True,
                 type="primary" if is_selected else "secondary",
             ):
-                st.session_state.quiz_time_per_question = seconds
+                st.session_state.quiz_timer_mode = mode
                 st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
+
+    if st.session_state.quiz_timer_mode == "per_question":
+        st.markdown('<div class="quiz-setup-label">Time per question</div>', unsafe_allow_html=True)
+        st.markdown('<div class="quiz-pill-row">', unsafe_allow_html=True)
+        cols = st.columns(len(_TIME_OPTIONS))
+        for col, (label, seconds) in zip(cols, _TIME_OPTIONS):
+            with col:
+                is_selected = st.session_state.quiz_time_per_question == seconds
+                if st.button(
+                    label,
+                    key=f"qtime_{seconds}",
+                    use_container_width=True,
+                    type="primary" if is_selected else "secondary",
+                ):
+                    st.session_state.quiz_time_per_question = seconds
+                    st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+    else:
+        st.markdown('<div class="quiz-setup-label">Total time for the quiz</div>', unsafe_allow_html=True)
+        st.markdown('<div class="quiz-pill-row">', unsafe_allow_html=True)
+        cols = st.columns(len(_TOTAL_TIME_OPTIONS))
+        for col, (label, minutes) in zip(cols, _TOTAL_TIME_OPTIONS):
+            with col:
+                is_selected = st.session_state.quiz_total_minutes == minutes
+                if st.button(
+                    label,
+                    key=f"qtotalmin_{minutes}",
+                    use_container_width=True,
+                    type="primary" if is_selected else "secondary",
+                ):
+                    st.session_state.quiz_total_minutes = minutes
+                    st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+        st.markdown(
+            '<div class="quiz-setup-hint">The countdown starts when the quiz begins and keeps running '
+            'no matter which question you\'re on — it auto-submits at zero.</div>',
+            unsafe_allow_html=True,
+        )
 
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -169,6 +239,17 @@ def render_quiz_setup():
             st.session_state.quiz_submitted = False
             st.session_state.review_mode = False
             st.session_state.quiz_question_start_time = None
+
+            # Reset per-attempt tracking for the palette + timers.
+            st.session_state.quiz_flagged = {}
+            st.session_state.quiz_visited = {0: True}
+            st.session_state.quiz_start_time = None
+            st.session_state.quiz_total_time_limit = (
+                st.session_state.quiz_total_minutes * 60
+                if st.session_state.quiz_timer_mode == "total"
+                else 0
+            )
+
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
 
