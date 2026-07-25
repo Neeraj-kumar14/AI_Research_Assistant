@@ -1,0 +1,36 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install test dependencies
+        # Only the packages the unit tests actually touch (chunker,
+        # retriever, vector_store, and the quiz-JSON parser in llm.py)
+        # — not the full requirements.txt, which pulls in torch /
+        # sentence-transformers / easyocr and would make CI slow for
+        # logic that doesn't need them. Bump this list if a new test
+        # needs a new import.
+        run: |
+          pip install --upgrade pip
+          pip install -r requirements-dev.txt
+          pip install numpy faiss-cpu groq python-dotenv langdetect
+
+      - name: Lint
+        run: ruff check .
+
+      - name: Run tests
+        run: pytest -v

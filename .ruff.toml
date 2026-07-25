@@ -1,0 +1,8 @@
+# Keep this light-touch: the goal is to catch real bugs (unused
+# imports, undefined names, obvious errors) in CI, not to impose a
+# strict style regime on top of an already-working app.
+line-length = 120
+
+[lint]
+select = ["E9", "F"]  # syntax errors + pyflakes (unused imports, undefined names, etc.)
+ignore = ["F401"]     # a few intentional re-exports (e.g. NOTE_SECTIONS from llm.py)
