@@ -142,11 +142,11 @@ def _setup_body():
     total_count = len(NOTE_SECTIONS)
     col_all, col_none = st.columns(2)
     with col_all:
-        if st.button("Select all", use_container_width=True, disabled=sel_count == total_count):
+        if st.button("Select all", use_container_width=True, disabled=sel_count == total_count, key="notes_select_all"):
             st.session_state.notes_sections = {key for key, _ in NOTE_SECTIONS}
             st.rerun()
     with col_none:
-        if st.button("Clear all", use_container_width=True, disabled=sel_count == 0):
+        if st.button("Clear all", use_container_width=True, disabled=sel_count == 0, key="notes_clear_all"):
             st.session_state.notes_sections = set()
             st.rerun()
 

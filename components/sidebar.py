@@ -117,6 +117,23 @@ def _save_to_cache(key, data):
         pass  # cache is a speed optimization, never let it break processing
 
 
+def _start_takeover(stage_key, value):
+    """Quiz / flashcards / notes are full-screen "takeover" modes, each
+    driven by its own <name>_stage session-state flag. Those flags are
+    independent, so without this guard a user could e.g. open a quiz,
+    then click "Generate flashcards" in the sidebar (always visible)
+    before closing it — leaving quiz_stage=='active' AND
+    flashcard_stage=='active' at once. app.py would then render both
+    screens in the same script run, and any unkeyed widget the two
+    screens happen to share (by label/type) raises
+    StreamlitDuplicateElementId. Starting one mode always clears the
+    other two first, so at most one takeover screen is ever mounted."""
+    for key in ("quiz_stage", "flashcard_stage", "notes_stage"):
+        if key != stage_key:
+            st.session_state[key] = None
+    st.session_state[stage_key] = value
+
+
 def render_sidebar():
     with st.sidebar:
         st.markdown(
@@ -259,7 +276,7 @@ def render_sidebar():
 
             section_label("Study tools")
 
-            if st.button("📑  Summarize document", use_container_width=True):
+            if st.button("📑  Summarize document", use_container_width=True, key="sb_summarize"):
                 with st.spinner("Generating summary..."):
                     try:
                         summary = summarize_pdf(
@@ -274,8 +291,8 @@ def render_sidebar():
                 st.session_state.messages.append({"role": "assistant", "content": summary})
                 st.rerun()
 
-            if st.button("📝  Generate study notes", use_container_width=True):
-                st.session_state.notes_stage = "setup"
+            if st.button("📝  Generate study notes", use_container_width=True, key="sb_notes"):
+                _start_takeover("notes_stage", "setup")
                 st.rerun()
 
             if st.session_state.get("study_notes"):
@@ -287,6 +304,7 @@ def render_sidebar():
                         file_name="study_notes.pdf",
                         mime="application/pdf",
                         use_container_width=True,
+                        key="sb_dl_pdf",
                     )
 
                 st.download_button(
@@ -295,19 +313,20 @@ def render_sidebar():
                     file_name="study_notes.md",
                     mime="text/markdown",
                     use_container_width=True,
+                    key="sb_dl_md",
                 )
 
-            if st.button("🧠  Generate flashcards", use_container_width=True):
-                st.session_state.flashcard_stage = "setup"
+            if st.button("🧠  Generate flashcards", use_container_width=True, key="sb_flashcards"):
+                _start_takeover("flashcard_stage", "setup")
                 st.rerun()
 
-            if st.button("❓  Generate quiz", use_container_width=True):
-                st.session_state.quiz_stage = "setup"
+            if st.button("❓  Generate quiz", use_container_width=True, key="sb_quiz"):
+                _start_takeover("quiz_stage", "setup")
                 st.rerun()
 
             st.divider()
 
-            if st.button("🗑  Clear chat", use_container_width=True):
+            if st.button("🗑  Clear chat", use_container_width=True, key="sb_clear_chat"):
                 st.session_state.messages = []
                 st.session_state.pdf_loaded = False
                 st.session_state.review_mode = False

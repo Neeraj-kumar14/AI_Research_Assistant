@@ -3,7 +3,6 @@ import re
 import html
 
 import streamlit as st
-import streamlit.components.v1 as components
 
 _QA_PATTERN = re.compile(
     r"\*\*Q:\*\*\s*(.*?)\s*\*\*A:\*\*\s*(.*?)(?=(?:\n\s*---)|(?:\n\s*##\s*Flashcard)|\Z)",
@@ -315,7 +314,7 @@ def _inject_swipe_handler():
     firing the real 'Know it' / 'Still learning' Streamlit buttons once
     the drag passes a threshold — so a swipe behaves exactly like
     tapping those buttons, just more interactive."""
-    components.html(
+    st.iframe(
         """
         <script>
         (function() {
@@ -475,13 +474,13 @@ def render_flashcard_deck():
 
     col_view1, col_view2 = st.columns(2)
     with col_view1:
-        if st.button("🔀 Shuffle", use_container_width=True):
+        if st.button("🔀 Shuffle", use_container_width=True, key="fc_shuffle"):
             random.shuffle(st.session_state.flashcard_order)
             st.session_state.flashcard_current = 0
             st.session_state.flashcard_direction = "next"
             st.rerun()
     with col_view2:
-        if st.button("🔲 View all cards", use_container_width=True):
+        if st.button("🔲 View all cards", use_container_width=True, key="fc_view_all"):
             st.session_state.flashcard_view = "grid"
             st.rerun()
 
@@ -540,12 +539,12 @@ def render_flashcard_deck():
 
     col_prev, col_next = st.columns(2)
     with col_prev:
-        if st.button("⬅ Previous", use_container_width=True, disabled=current == 0):
+        if st.button("⬅ Previous", use_container_width=True, disabled=current == 0, key="fc_deck_prev"):
             st.session_state.flashcard_current -= 1
             st.session_state.flashcard_direction = "prev"
             st.rerun()
     with col_next:
-        if st.button("Skip ➡", use_container_width=True):
+        if st.button("Skip ➡", use_container_width=True, key="fc_deck_skip"):
             st.session_state.flashcard_current += 1
             st.session_state.flashcard_direction = "next"
             st.rerun()
@@ -572,7 +571,7 @@ def render_flashcard_deck():
 def _render_grid_view(cards):
     st.markdown('<div class="section-label">🔲 All cards</div>', unsafe_allow_html=True)
     render_flashcards(cards, key_prefix="fc-grid")
-    if st.button("◀ Back to deck", use_container_width=True):
+    if st.button("◀ Back to deck", use_container_width=True, key="fc_back_to_deck"):
         st.session_state.flashcard_view = "deck"
         st.rerun()
 
@@ -594,17 +593,17 @@ def _render_deck_complete(total, known_count, learning_count, starred_count):
 
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.button("🔁 Restart deck", use_container_width=True):
+        if st.button("🔁 Restart deck", use_container_width=True, key="fc_restart_deck"):
             st.session_state.flashcard_current = 0
             st.session_state.flashcard_known = {}
             st.session_state.flashcard_direction = "next"
             st.rerun()
     with col2:
-        if st.button("🔲 Review all", use_container_width=True):
+        if st.button("🔲 Review all", use_container_width=True, key="fc_complete_review_all"):
             st.session_state.flashcard_view = "grid"
             st.rerun()
     with col3:
-        if st.button("🆕 New deck", use_container_width=True):
+        if st.button("🆕 New deck", use_container_width=True, key="fc_new_deck"):
             _exit_deck()
             st.session_state.flashcard_stage = "setup"
             st.rerun()

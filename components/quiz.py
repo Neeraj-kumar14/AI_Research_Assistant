@@ -245,19 +245,19 @@ def render_quiz():
 
     with col1:
         if current > 0:
-            if st.button("⬅ Previous", use_container_width=True):
+            if st.button("⬅ Previous", use_container_width=True, key="quiz_prev"):
                 st.session_state.current_question -= 1
                 st.session_state.quiz_question_start_time = None
                 st.rerun()
 
     with col2:
         if current < total - 1:
-            if st.button("Next ➡", use_container_width=True, type="primary"):
+            if st.button("Next ➡", use_container_width=True, type="primary", key="quiz_next"):
                 st.session_state.current_question += 1
                 st.session_state.quiz_question_start_time = None
                 st.rerun()
         else:
-            if st.button("✅ Submit quiz", use_container_width=True, type="primary"):
+            if st.button("✅ Submit quiz", use_container_width=True, type="primary", key="quiz_submit"):
                 _score_quiz()
                 st.rerun()
 
@@ -575,11 +575,11 @@ def _render_results():
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("📖 Review answers", use_container_width=True):
+        if st.button("📖 Review answers", use_container_width=True, key="quiz_review"):
             st.session_state.review_mode = True
             st.rerun()
     with col2:
-        if st.button("🔁 New quiz", use_container_width=True):
+        if st.button("🔁 New quiz", use_container_width=True, key="quiz_new"):
             _exit_quiz()
             st.session_state.quiz_stage = "setup"
             st.rerun()

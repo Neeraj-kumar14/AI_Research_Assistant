@@ -208,11 +208,11 @@ def render_quiz_setup():
     st.markdown('<div class="quiz-setup-actions">', unsafe_allow_html=True)
     col1, col2 = st.columns([1, 2])
     with col1:
-        if st.button("✕ Cancel", use_container_width=True):
+        if st.button("✕ Cancel", use_container_width=True, key="quiz_setup_cancel"):
             st.session_state.quiz_stage = None
             st.rerun()
     with col2:
-        if st.button("🚀 Start quiz", use_container_width=True, type="primary"):
+        if st.button("🚀 Start quiz", use_container_width=True, type="primary", key="quiz_setup_start"):
             loader = st.empty()
             loader.markdown(
                 animated_loader(
