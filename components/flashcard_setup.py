@@ -102,6 +102,9 @@ _SETUP_CSS = """
     0%, 100% { box-shadow: 0 0 0 0 rgba(184, 134, 11, 0.0); }
     50% { box-shadow: 0 0 0 6px rgba(184, 134, 11, 0.12); }
 }
+@media (prefers-reduced-motion: reduce) {
+    .fc-setup-actions .stButton > button[kind="primary"] { animation: none !important; }
+}
 </style>
 """
 

@@ -60,7 +60,7 @@ _SETUP_CSS = """
     color: #1B2A4A !important;
     font-size: 0.86rem !important;
     padding: 0.4rem 0.2rem !important;
-    transition: transform 0.12s ease, border-color 0.15s ease, background-color 0.15s ease;
+    transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s ease, background-color 0.15s ease;
 }
 .quiz-pill-row .stButton > button:hover:not(:disabled) {
     border-color: #2F6F4E !important;
@@ -71,6 +71,12 @@ _SETUP_CSS = """
     border-color: #2F6F4E !important;
     color: #FFFFFF !important;
     font-weight: 600 !important;
+    animation: qPillPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@keyframes qPillPop {
+    0%   { transform: scale(0.9); }
+    60%  { transform: scale(1.06); }
+    100% { transform: scale(1); }
 }
 .quiz-setup-actions .stButton > button[kind="primary"] {
     animation: qPulseReady 2.2s ease-in-out infinite;
@@ -78,6 +84,9 @@ _SETUP_CSS = """
 @keyframes qPulseReady {
     0%, 100% { box-shadow: 0 0 0 0 rgba(47, 111, 78, 0.0); }
     50% { box-shadow: 0 0 0 6px rgba(47, 111, 78, 0.10); }
+}
+@media (prefers-reduced-motion: reduce) {
+    .quiz-setup-actions .stButton > button[kind="primary"] { animation: none !important; }
 }
 </style>
 """

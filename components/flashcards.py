@@ -188,6 +188,42 @@ _DECK_CSS = """
 .fc-learning-btn .stButton > button:hover:not(:disabled) {
     background: #FBEDE8 !important;
 }
+.fc-single-card {
+    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.fc-single-card:hover {
+    transform: translateY(-3px);
+}
+.fc-card-face {
+    transition: box-shadow 0.25s ease;
+}
+.fc-single-card:hover .fc-card-face {
+    box-shadow: 0 12px 28px rgba(27, 42, 74, 0.12);
+}
+.fc-star-badge {
+    animation: fcPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
+}
+.fc-progress-fill {
+    position: relative;
+    overflow: hidden;
+}
+.fc-progress-fill::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    animation: fcShine 1.8s ease-in-out infinite;
+}
+@keyframes fcShine {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+.fc-topbar, .fc-stats-row {
+    animation: fcFadeInUp 0.35s ease both;
+}
+@media (prefers-reduced-motion: reduce) {
+    .fc-progress-fill::after { animation: none !important; }
+    .fc-single-card:hover { transform: none; }
+}
 </style>
 """
 

@@ -22,15 +22,28 @@ MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "300"))
 # Override via MAX_OCR_PAGES env var.
 MAX_OCR_PAGES = int(os.getenv("MAX_OCR_PAGES", "30"))
 
-# Render resolution for OCR fallback. 2x zoom (~150 DPI equivalent)
-# balances OCR accuracy against memory/time per page; going much higher
-# meaningfully slows OCR for little accuracy gain on typical scans.
-_OCR_ZOOM = 2.0
+# Render resolution for OCR fallback. 3x zoom (~216 DPI equivalent)
+# gives EasyOCR meaningfully more pixels per character than the old 2x
+# (~150 DPI) — small body text and footnotes were previously landing
+# right at the edge of what the detector can read reliably. Override
+# via OCR_ZOOM if this is too slow/memory-heavy for your deployment.
+_OCR_ZOOM = float(os.getenv("OCR_ZOOM", "3.0"))
+
+# A page can have a real text layer that's essentially useless for
+# OCR purposes — e.g. a single "3" page-number, or a couple of stray
+# characters from a decorative header — while the actual body content
+# is a scanned image. Treating any non-empty text() as "this page is
+# fine, skip OCR" (the old behavior) silently dropped that content.
+# Below this many characters, the text layer is treated as absent and
+# the page falls through to OCR instead. Override via
+# MIN_TEXT_LAYER_CHARS.
+MIN_TEXT_LAYER_CHARS = int(os.getenv("MIN_TEXT_LAYER_CHARS", "20"))
 
 
 def _ocr_page(page):
-    """Render a page to an image and run it through OCR. Used only for
-    pages with no extractable text layer (i.e. scanned pages)."""
+    """Render a page to an image and run it through OCR. Used for
+    pages with no extractable text layer, or one too sparse to be the
+    real page content (i.e. scanned pages)."""
     pix = page.get_pixmap(matrix=fitz.Matrix(_OCR_ZOOM, _OCR_ZOOM), alpha=False)
     image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
     return extract_text_from_image(image)
@@ -63,8 +76,9 @@ def load_pdf(uploaded_file):
             break
 
         text = page.get_text()
+        stripped = text.strip() if text else ""
 
-        if text and text.strip():
+        if len(stripped) >= MIN_TEXT_LAYER_CHARS:
             pages.append(
                 {
                     "page": page_num,
@@ -74,16 +88,21 @@ def load_pdf(uploaded_file):
             )
             continue
 
-        # No text layer — likely a scanned page. Fall back to OCR, up
-        # to the per-document OCR cap.
+        # No usable text layer — likely a scanned page (or one with
+        # only a stray character or two of "real" text). Fall back to
+        # OCR, up to the per-document OCR cap.
         if ocr_pages_used < MAX_OCR_PAGES:
             ocr_pages_used += 1
             ocr_text = _ocr_page(page)
-            if ocr_text and ocr_text.strip():
+            # Prefer OCR output, but don't throw away a short-but-real
+            # text layer if OCR itself came back empty (e.g. a mostly
+            # blank page with just a page number).
+            final_text = ocr_text if ocr_text and ocr_text.strip() else stripped
+            if final_text:
                 pages.append(
                     {
                         "page": page_num,
-                        "text": ocr_text,
+                        "text": final_text,
                         "source": uploaded_file.name
                     }
                 )
