@@ -1,5 +1,7 @@
 import os
 import json
+import base64
+import io
 from concurrent.futures import ThreadPoolExecutor
 from dotenv import load_dotenv
 from groq import Groq
@@ -94,6 +96,96 @@ def _is_rate_limit_error(exc) -> bool:
 def _is_timeout_error(exc) -> bool:
     msg = str(exc).lower()
     return "timeout" in msg or "timed out" in msg
+
+
+# EasyOCR (used in utils/ocr.py) is a printed/scene-text engine — it's
+# unreliable on cursive handwriting almost regardless of preprocessing,
+# and on genuinely handwritten pages it commonly ends up filtering out
+# nearly everything as low-confidence noise. Vision-capable chat models
+# are far better at reading handwriting, so this is used as a fallback
+# specifically for pages where EasyOCR's output looks like it failed.
+# Groq's vision lineup changes over time; keep this to one well-tested
+# current model rather than trying to fold it into the text-only
+# fallback chain above.
+VISION_MODEL = os.getenv("GROQ_VISION_MODEL", "qwen/qwen3.6-27b")
+
+HANDWRITING_PROMPT = (
+    "Transcribe every word of handwritten or printed text visible in this "
+    "image, exactly as written. Preserve line breaks, headings, and bullet "
+    "points where visible. Do not summarize, translate, correct spelling, "
+    "or add any commentary — output ONLY the transcribed text, nothing else. "
+    "If truly nothing is legible, output exactly: [no legible text]"
+)
+
+
+def _image_to_data_url(image, max_long_edge=2000, quality=85):
+    """Downscale (if needed) and JPEG-encode a PIL image into a data: URL
+    for the Groq vision API. Keeps the base64 payload reasonably sized."""
+    image = image.convert("RGB")
+    long_edge = max(image.size)
+    if long_edge > max_long_edge:
+        scale = max_long_edge / long_edge
+        image = image.resize(
+            (round(image.width * scale), round(image.height * scale))
+        )
+    buf = io.BytesIO()
+    image.save(buf, format="JPEG", quality=quality)
+    b64 = base64.b64encode(buf.getvalue()).decode("utf-8")
+    return f"data:image/jpeg;base64,{b64}"
+
+
+def transcribe_handwriting(image, temperature=0.0):
+    """Ask a vision-capable Groq model to transcribe a page image.
+
+    Used as a fallback when EasyOCR comes back empty/near-empty on a
+    page that clearly has content (typical of cursive handwriting,
+    which EasyOCR's detector/recognizer wasn't trained on). Reuses the
+    same GROQ_API_KEY(s) already configured for text chat, just with a
+    vision-capable model.
+    """
+    keys = []
+    for var in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3", "GROQ_API_KEY_4"):
+        key = os.getenv(var)
+        if key:
+            keys.append(key)
+    if not keys:
+        return ""
+
+    data_url = _image_to_data_url(image)
+    last_error = None
+
+    for api_key in keys:
+        try:
+            client = Groq(api_key=api_key, timeout=REQUEST_TIMEOUT_SECONDS)
+            response = client.chat.completions.create(
+                model=VISION_MODEL,
+                temperature=temperature,
+                messages=[
+                    {
+                        "role": "user",
+                        "content": [
+                            {"type": "text", "text": HANDWRITING_PROMPT},
+                            {"type": "image_url", "image_url": {"url": data_url}},
+                        ],
+                    }
+                ],
+            )
+            text = response.choices[0].message.content or ""
+            if text.strip() == "[no legible text]":
+                return ""
+            return text
+        except Exception as e:
+            last_error = e
+            if _is_rate_limit_error(e) or _is_timeout_error(e):
+                continue
+            # A real error (bad request, model unavailable, etc.) — don't
+            # let a broken vision fallback crash the whole PDF load, just
+            # give up on this page's vision-assisted OCR.
+            break
+
+    if last_error:
+        print(f"transcribe_handwriting failed: {last_error}")
+    return ""
 
 
 def chat_completion(messages, temperature=0.2):

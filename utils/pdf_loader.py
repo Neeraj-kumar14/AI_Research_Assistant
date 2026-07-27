@@ -4,6 +4,7 @@ import fitz  # PyMuPDF
 from PIL import Image
 
 from utils.ocr import extract_text_from_image
+from utils.llm import transcribe_handwriting
 
 # Hard ceiling on pages processed per upload. On a free/shared, RAM-
 # limited deployment with many concurrent users, one very large PDF
@@ -39,14 +40,43 @@ _OCR_ZOOM = float(os.getenv("OCR_ZOOM", "3.0"))
 # MIN_TEXT_LAYER_CHARS.
 MIN_TEXT_LAYER_CHARS = int(os.getenv("MIN_TEXT_LAYER_CHARS", "20"))
 
+# EasyOCR is a printed/scene-text engine, not a handwriting model — on
+# cursive handwritten pages it routinely comes back empty or with only
+# a handful of characters (everything else gets dropped as low-
+# confidence noise). Below this length, a vision-capable chat model is
+# tried as a second pass before giving up on the page. Override via
+# MIN_OCR_RESULT_CHARS.
+MIN_OCR_RESULT_CHARS = int(os.getenv("MIN_OCR_RESULT_CHARS", "20"))
+
+# Whether to even attempt the vision-model fallback at all. It costs an
+# extra LLM call per page that trips the threshold above, so it can be
+# disabled (e.g. no Groq vision access, or to save quota) via
+# ENABLE_HANDWRITING_FALLBACK=false.
+_ENABLE_HANDWRITING_FALLBACK = os.getenv("ENABLE_HANDWRITING_FALLBACK", "true").lower() != "false"
+
 
 def _ocr_page(page):
     """Render a page to an image and run it through OCR. Used for
     pages with no extractable text layer, or one too sparse to be the
-    real page content (i.e. scanned pages)."""
+    real page content (i.e. scanned pages).
+
+    EasyOCR runs first (fast, no API call). If its result is empty or
+    suspiciously short — the classic symptom of cursive handwriting,
+    which EasyOCR's detector/recognizer wasn't trained on — a vision-
+    capable chat model is tried as a second pass on the same page
+    image before the page is treated as unreadable.
+    """
     pix = page.get_pixmap(matrix=fitz.Matrix(_OCR_ZOOM, _OCR_ZOOM), alpha=False)
     image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
-    return extract_text_from_image(image)
+
+    text = extract_text_from_image(image)
+
+    if _ENABLE_HANDWRITING_FALLBACK and len(text.strip()) < MIN_OCR_RESULT_CHARS:
+        vision_text = transcribe_handwriting(image)
+        if len(vision_text.strip()) > len(text.strip()):
+            return vision_text
+
+    return text
 
 
 def load_pdf(uploaded_file):

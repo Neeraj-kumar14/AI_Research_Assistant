@@ -462,7 +462,7 @@ def _inject_swipe_handler():
         })();
         </script>
         """,
-        height=0,
+        height=1,
     )
 
 
