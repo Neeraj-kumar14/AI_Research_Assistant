@@ -135,13 +135,21 @@ def _reading_order(results):
     return lines
 
 
-def extract_text_from_image(image, min_confidence=None):
+def extract_text_from_image(image, min_confidence=None, return_confidence=False):
     """Extract text from a page image (PIL Image or numpy array).
 
     Preprocesses the image for legibility, runs EasyOCR with detection
     thresholds loosened enough to catch faint/small text, drops
     low-confidence noise, and reassembles what's left into reading
     order rather than the detector's raw (unordered) output.
+
+    If return_confidence is True, also returns the mean confidence of
+    the retained detections (0.0 if none survived filtering). This is
+    a much more reliable signal than text length alone for deciding
+    whether EasyOCR's result is trustworthy — cursive handwriting
+    routinely produces long strings of confident-*looking* garbage
+    that raw length checks miss, but where the detector's own
+    confidence stays low throughout.
     """
     if min_confidence is None:
         min_confidence = MIN_CONFIDENCE
@@ -169,5 +177,12 @@ def extract_text_from_image(image, min_confidence=None):
         )
 
     filtered = [r for r in results if r[2] >= min_confidence]
+    text = "\n".join(_reading_order(filtered))
 
-    return "\n".join(_reading_order(filtered))
+    if return_confidence:
+        mean_confidence = (
+            sum(r[2] for r in filtered) / len(filtered) if filtered else 0.0
+        )
+        return text, mean_confidence
+
+    return text

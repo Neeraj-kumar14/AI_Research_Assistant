@@ -40,13 +40,21 @@ _OCR_ZOOM = float(os.getenv("OCR_ZOOM", "3.0"))
 # MIN_TEXT_LAYER_CHARS.
 MIN_TEXT_LAYER_CHARS = int(os.getenv("MIN_TEXT_LAYER_CHARS", "20"))
 
-# EasyOCR is a printed/scene-text engine, not a handwriting model — on
-# cursive handwritten pages it routinely comes back empty or with only
-# a handful of characters (everything else gets dropped as low-
-# confidence noise). Below this length, a vision-capable chat model is
-# tried as a second pass before giving up on the page. Override via
-# MIN_OCR_RESULT_CHARS.
+# EasyOCR is a printed/scene-text engine — it's unreliable on cursive
+# handwriting almost regardless of preprocessing. Below this length,
+# a vision-capable chat model is tried as a second pass before giving
+# up on the page. Override via MIN_OCR_RESULT_CHARS.
 MIN_OCR_RESULT_CHARS = int(os.getenv("MIN_OCR_RESULT_CHARS", "20"))
+
+# Length alone misses a common failure mode: on cursive handwriting,
+# EasyOCR often produces a long string of confident-*looking* garbage
+# (misread strokes as random letters/digits/Devanagari) rather than a
+# short one — long enough to pass the length check above, but wrong
+# throughout. Mean detection confidence catches this: handwriting
+# misreads reliably score low even when the resulting text is long.
+# Below this, the page is treated as needing the vision fallback too.
+# Override via OCR_LOW_CONFIDENCE_FALLBACK.
+LOW_CONFIDENCE_FALLBACK_THRESHOLD = float(os.getenv("OCR_LOW_CONFIDENCE_FALLBACK", "0.55"))
 
 # Whether to even attempt the vision-model fallback at all. It costs an
 # extra LLM call per page that trips the threshold above, so it can be
@@ -60,20 +68,28 @@ def _ocr_page(page):
     pages with no extractable text layer, or one too sparse to be the
     real page content (i.e. scanned pages).
 
-    EasyOCR runs first (fast, no API call). If its result is empty or
-    suspiciously short — the classic symptom of cursive handwriting,
-    which EasyOCR's detector/recognizer wasn't trained on — a vision-
-    capable chat model is tried as a second pass on the same page
-    image before the page is treated as unreadable.
+    EasyOCR runs first (fast, no API call). If its result is short OR
+    its own detection confidence is low — the two independent symptoms
+    of cursive handwriting, which EasyOCR's detector/recognizer wasn't
+    trained on — a vision-capable chat model is tried as a second pass
+    on the same page image before the page is treated as unreadable.
+    Checking confidence in addition to length matters because a full
+    page of misread cursive can produce plenty of characters, just
+    wrong ones throughout.
     """
     pix = page.get_pixmap(matrix=fitz.Matrix(_OCR_ZOOM, _OCR_ZOOM), alpha=False)
     image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
 
-    text = extract_text_from_image(image)
+    text, mean_confidence = extract_text_from_image(image, return_confidence=True)
 
-    if _ENABLE_HANDWRITING_FALLBACK and len(text.strip()) < MIN_OCR_RESULT_CHARS:
+    needs_fallback = (
+        len(text.strip()) < MIN_OCR_RESULT_CHARS
+        or mean_confidence < LOW_CONFIDENCE_FALLBACK_THRESHOLD
+    )
+
+    if _ENABLE_HANDWRITING_FALLBACK and needs_fallback:
         vision_text = transcribe_handwriting(image)
-        if len(vision_text.strip()) > len(text.strip()):
+        if vision_text.strip():
             return vision_text
 
     return text
