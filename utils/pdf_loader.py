@@ -6,6 +6,8 @@ from PIL import Image
 
 from utils.ocr import extract_text_from_image
 from utils.llm import transcribe_handwriting
+from utils.mistral_ocr import extract_text_from_image as mistral_ocr_extract
+from utils.mistral_ocr import is_available as mistral_ocr_available
 
 # Hard ceiling on pages processed per upload. On a free/shared, RAM-
 # limited deployment with many concurrent users, one very large PDF
@@ -103,14 +105,25 @@ def _ocr_page(page):
     pages with no extractable text layer, or one too sparse to be the
     real page content (i.e. scanned pages).
 
-    EasyOCR runs first (fast, no API call). If its result is short OR
-    its own detection confidence is low — the two independent symptoms
-    of cursive handwriting, which EasyOCR's detector/recognizer wasn't
-    trained on — a vision-capable chat model is tried as a second pass
-    on the same page image before the page is treated as unreadable.
-    Checking confidence in addition to length matters because a full
-    page of misread cursive can produce plenty of characters, just
-    wrong ones throughout.
+    Three tiers, tried in order, each only reached if the previous one
+    looks unreliable:
+
+    1. EasyOCR — free, offline, no API call. Always tried first.
+    2. Mistral OCR — a paid API call, but a stronger general-purpose
+       document OCR engine, notably on real-world (not clean/scanned-
+       in-a-scanner) Hindi/Marathi/Tamil/etc. pages, which is exactly
+       where EasyOCR is weakest. Only reached if configured
+       (MISTRAL_API_KEY set) and EasyOCR's own result looks
+       unreliable.
+    3. The Groq vision handwriting model — last resort, mainly for
+       genuinely cursive handwriting that neither OCR engine above was
+       trained on.
+
+    "Looks unreliable" is EasyOCR's result being short OR its own mean
+    detection confidence being low. Checking confidence in addition to
+    length matters because a full page of misread cursive can produce
+    plenty of characters, just wrong ones throughout — length alone
+    would miss that.
     """
     pix = page.get_pixmap(matrix=fitz.Matrix(_OCR_ZOOM, _OCR_ZOOM), alpha=False)
     image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
@@ -121,6 +134,11 @@ def _ocr_page(page):
         len(text.strip()) < MIN_OCR_RESULT_CHARS
         or mean_confidence < LOW_CONFIDENCE_FALLBACK_THRESHOLD
     )
+
+    if needs_fallback and mistral_ocr_available():
+        mistral_text = mistral_ocr_extract(image)
+        if mistral_text.strip():
+            return mistral_text
 
     if _ENABLE_HANDWRITING_FALLBACK and needs_fallback:
         vision_text = transcribe_handwriting(image)
