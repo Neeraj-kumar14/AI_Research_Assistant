@@ -1,4 +1,5 @@
 import os
+from collections import Counter
 
 import fitz  # PyMuPDF
 from PIL import Image
@@ -40,6 +41,29 @@ _OCR_ZOOM = float(os.getenv("OCR_ZOOM", "3.0"))
 # MIN_TEXT_LAYER_CHARS.
 MIN_TEXT_LAYER_CHARS = int(os.getenv("MIN_TEXT_LAYER_CHARS", "20"))
 
+# A text layer can "exist" (pass the character-count check above) and
+# still be unusable garbage. The most common cause: the PDF's embedded
+# font has a broken or missing ToUnicode CMap, so PyMuPDF extracts a
+# character for every glyph, but almost all of those characters decode
+# to the *same wrong letter* — e.g. a full page of real body text comes
+# back as a wall of "IIIIIIII IIIII IIIIIIII". This happens with PDFs
+# produced by some "image/notes to PDF" converters and isn't rare.
+# Since the page's rendered pixels are still fine, the fix is to detect
+# this case and treat it the same as "no text layer" so the page falls
+# through to OCR below, instead of silently feeding garbage into the
+# LLM (which then hallucinates or reports the document is meaningless).
+#
+# Real text in any language never has one letter dominate this heavily
+# — even highly repetitive prose tops out with its most common letter
+# around 12-15% of all letters (measured on English/Hindi samples). A
+# ratio at or above this threshold is a reliable sign of a font-mapping
+# bug, not real content. Override via GARBLED_TEXT_DOMINANT_CHAR_RATIO.
+GARBLED_TEXT_DOMINANT_CHAR_RATIO = float(os.getenv("GARBLED_TEXT_DOMINANT_CHAR_RATIO", "0.35"))
+
+# Below this many letters, frequency ratios are too noisy to judge
+# reliably (a short heading can legitimately repeat one letter a lot).
+GARBLED_TEXT_MIN_LETTERS = int(os.getenv("GARBLED_TEXT_MIN_LETTERS", "30"))
+
 # EasyOCR is a printed/scene-text engine — it's unreliable on cursive
 # handwriting almost regardless of preprocessing. Below this length,
 # a vision-capable chat model is tried as a second pass before giving
@@ -61,6 +85,17 @@ LOW_CONFIDENCE_FALLBACK_THRESHOLD = float(os.getenv("OCR_LOW_CONFIDENCE_FALLBACK
 # disabled (e.g. no Groq vision access, or to save quota) via
 # ENABLE_HANDWRITING_FALLBACK=false.
 _ENABLE_HANDWRITING_FALLBACK = os.getenv("ENABLE_HANDWRITING_FALLBACK", "true").lower() != "false"
+
+
+def _is_garbled_text(text: str) -> bool:
+    """True if `text` looks like corrupted output from a broken font
+    mapping rather than real content (see GARBLED_TEXT_DOMINANT_CHAR_RATIO
+    above for why this happens and why the ratio check is reliable)."""
+    letters = [c for c in text if c.isalpha()]
+    if len(letters) < GARBLED_TEXT_MIN_LETTERS:
+        return False
+    top_count = Counter(letters).most_common(1)[0][1]
+    return (top_count / len(letters)) >= GARBLED_TEXT_DOMINANT_CHAR_RATIO
 
 
 def _ocr_page(page):
@@ -123,8 +158,9 @@ def load_pdf(uploaded_file):
 
         text = page.get_text()
         stripped = text.strip() if text else ""
+        garbled = len(stripped) >= MIN_TEXT_LAYER_CHARS and _is_garbled_text(stripped)
 
-        if len(stripped) >= MIN_TEXT_LAYER_CHARS:
+        if len(stripped) >= MIN_TEXT_LAYER_CHARS and not garbled:
             pages.append(
                 {
                     "page": page_num,
@@ -134,16 +170,19 @@ def load_pdf(uploaded_file):
             )
             continue
 
-        # No usable text layer — likely a scanned page (or one with
-        # only a stray character or two of "real" text). Fall back to
-        # OCR, up to the per-document OCR cap.
+        # No usable text layer — either a scanned page, one with only a
+        # stray character or two of "real" text, or (see `garbled`
+        # above) a page whose text layer is corrupted by a broken font
+        # mapping. Fall back to OCR, up to the per-document OCR cap.
         if ocr_pages_used < MAX_OCR_PAGES:
             ocr_pages_used += 1
             ocr_text = _ocr_page(page)
             # Prefer OCR output, but don't throw away a short-but-real
             # text layer if OCR itself came back empty (e.g. a mostly
-            # blank page with just a page number).
-            final_text = ocr_text if ocr_text and ocr_text.strip() else stripped
+            # blank page with just a page number). Never fall back to a
+            # *garbled* text layer though — that's not real content and
+            # is worse than having nothing for this page.
+            final_text = ocr_text if ocr_text and ocr_text.strip() else ("" if garbled else stripped)
             if final_text:
                 pages.append(
                     {
