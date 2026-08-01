@@ -1,3 +1,4 @@
+import logging
 import os
 import time
 import numpy as np
@@ -5,6 +6,8 @@ import streamlit as st
 from sentence_transformers import SentenceTransformer
 
 from utils.concurrency import cpu_job
+
+logger = logging.getLogger(__name__)
 
 
 @st.cache_resource
@@ -57,14 +60,6 @@ def create_embeddings(chunks, batch_size=256, progress_callback=None):
     total = len(chunks)
     all_embeddings = []
 
-    # for start in range(0, total, batch_size):
-    #     batch = chunks[start:start + batch_size]
-    #     batch_embeddings = model.encode(
-    #         batch, batch_size=batch_size, show_progress_bar=False, convert_to_numpy=True
-    #     )
-    #     all_embeddings.append(batch_embeddings)
-    #     progress_callback(min(start + batch_size, total), total)
-
     for start in range(0, total, batch_size):
 
         batch = chunks[start:start + batch_size]
@@ -82,10 +77,11 @@ def create_embeddings(chunks, batch_size=256, progress_callback=None):
                 convert_to_numpy=True,
             )
 
-        print(
-            f"Batch {start // batch_size + 1}: "
-            f"{len(batch)} chunks -> "
-            f"{time.perf_counter() - batch_start:.2f} sec"
+        logger.debug(
+            "Batch %d: %d chunks -> %.2f sec",
+            start // batch_size + 1,
+            len(batch),
+            time.perf_counter() - batch_start,
         )
 
         all_embeddings.append(batch_embeddings)

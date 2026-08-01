@@ -19,15 +19,17 @@ jobs:
 
       - name: Install test dependencies
         # Only the packages the unit tests actually touch (chunker,
-        # retriever, vector_store, and the quiz-JSON parser in llm.py)
-        # — not the full requirements.txt, which pulls in torch /
-        # sentence-transformers / easyocr and would make CI slow for
-        # logic that doesn't need them. Bump this list if a new test
-        # needs a new import.
+        # retriever, vector_store, pdf_loader, and the quiz-JSON parser
+        # in llm.py) — not the full requirements.txt, which pulls in
+        # torch / sentence-transformers / easyocr and would make CI
+        # slow for logic that doesn't need them. pymupdf and pillow are
+        # lightweight (no torch) and are needed for test_pdf_loader.py,
+        # which builds real in-memory PDFs and mocks out the OCR tiers.
+        # Bump this list if a new test needs a new import.
         run: |
           pip install --upgrade pip
           pip install -r requirements-dev.txt
-          pip install numpy faiss-cpu groq python-dotenv langdetect
+          pip install numpy faiss-cpu groq python-dotenv langdetect pymupdf pillow
 
       - name: Lint
         run: ruff check .

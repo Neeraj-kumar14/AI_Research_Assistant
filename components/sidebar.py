@@ -1,10 +1,13 @@
 import hashlib
+import logging
 import os
 import pickle
 from concurrent.futures import ThreadPoolExecutor
 import time
 
 import streamlit as st
+
+logger = logging.getLogger(__name__)
 
 from utils.pdf_loader import load_pdf
 from utils.docx_loader import load_docx
@@ -198,7 +201,7 @@ def render_sidebar():
                     # finds, which is the slowest part of this step for
                     # mixed text/scanned uploads.
                     progress_label.markdown("Reading documents (OCR runs automatically on scanned pages)…")
-                    start = time.perf_counter()#-------------------------------------------------------------------------
+                    start = time.perf_counter()
                     all_pages = []
                     if len(uploaded_files) > 1:
                         with ThreadPoolExecutor(max_workers=min(4, len(uploaded_files))) as pool:
@@ -207,8 +210,7 @@ def render_sidebar():
                     else:
                         all_pages.extend(_load_one(uploaded_files[0]))
                     progress_bar.progress(15)
-                    print(f"PDF Loading Time: {time.perf_counter() - start:.2f} sec")#----------------------------------------
-                    # st.info(f"PDF Loading Time: {time.perf_counter() - start:.2f} sec")
+                    logger.debug("PDF loading time: %.2f sec", time.perf_counter() - start)
 
                     pdf_text_for_lang = "\n\n".join(page["text"] for page in all_pages)
 
@@ -228,9 +230,9 @@ def render_sidebar():
                         progress_bar.progress(min(pct, 85))
                         progress_label.markdown(f"Embedding chunks… {done}/{total}")
                     
-                    start = time.perf_counter()#-----------------------------------------------
+                    start = time.perf_counter()
                     embeddings = create_embeddings(chunk_texts, progress_callback=_on_embed_progress)
-                    print(f"Embedding Time: {time.perf_counter() - start:.2f} sec")#-------------------------
+                    logger.debug("Embedding time: %.2f sec", time.perf_counter() - start)
                     progress_bar.progress(90)
 
                     _save_to_cache(
