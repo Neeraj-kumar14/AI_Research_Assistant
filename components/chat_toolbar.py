@@ -1,5 +1,6 @@
 import hashlib
 import html
+import io
 import logging
 import os
 import pickle
@@ -137,6 +138,7 @@ def _ingest_documents(uploaded_files, status_area):
         progress_bar.progress(90)
     else:
         def _load_one(uploaded_file):
+            uploaded_file.seek(0)  # may be re-read across multiple ingestion passes
             if uploaded_file.name.lower().endswith(".pdf"):
                 return load_pdf(uploaded_file)
             elif uploaded_file.name.lower().endswith(".docx"):
@@ -224,17 +226,40 @@ def sync_documents():
     st.toast(f"{len(doc_files)} document{'s' if len(doc_files) != 1 else ''} ready", icon="📄")
 
 
+class _StoredFile(io.BytesIO):
+    """Snapshot of an attached file's name + bytes, independent of
+    Streamlit's own UploadedFile object.
+
+    Files that arrive through st.chat_input's "+" attach button are
+    only guaranteed to be readable during the run they're submitted in
+    — their underlying buffer can go empty on a later rerun (e.g. once
+    a *second* file is attached and the whole accumulated set gets
+    reprocessed, including this one). Copying the bytes out immediately
+    into a real io.BytesIO avoids that "EmptyFileError" entirely, while
+    still behaving like a normal file object (.read(), .seek(), .tell(),
+    .getvalue()) for pymupdf and python-docx, both of which need more
+    than just .getvalue().
+    """
+
+    def __init__(self, name, data):
+        super().__init__(data)
+        self.name = name
+
+
 def add_files(new_files):
     """Merge newly attached files into the accumulated document set,
-    skipping exact duplicates (same name + same bytes)."""
+    skipping exact duplicates (same name + same bytes). Snapshots each
+    file's bytes right away (see _StoredFile) so it stays readable on
+    later reruns."""
     if not new_files:
         return
     existing = st.session_state.setdefault("doc_files", [])
     seen = {(f.name, len(f.getvalue())) for f in existing}
     for f in new_files:
-        sig = (f.name, len(f.getvalue()))
+        data = f.getvalue()
+        sig = (f.name, len(data))
         if sig not in seen:
-            existing.append(f)
+            existing.append(_StoredFile(f.name, data))
             seen.add(sig)
 
 

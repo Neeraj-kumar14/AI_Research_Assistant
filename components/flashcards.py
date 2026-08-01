@@ -1,8 +1,10 @@
+import json
 import random
 import re
 import html
 
 import streamlit as st
+from streamlit.components.v1 import html as components_html
 
 _QA_PATTERN = re.compile(
     r"\*\*Q:\*\*\s*(.*?)\s*\*\*A:\*\*\s*(.*?)(?=(?:\n\s*---)|(?:\n\s*##\s*Flashcard)|\Z)",
@@ -344,18 +346,33 @@ def render_flashcards(cards, key_prefix="fc"):
     )
 
 
-def _inject_swipe_handler():
+def _inject_swipe_handler(card_id):
     """Makes the currently-rendered .fc-single-card draggable with touch/
     mouse, showing live KNOW-IT / LEARNING badges as it's dragged, and
     firing the real 'Know it' / 'Still learning' Streamlit buttons once
     the drag passes a threshold — so a swipe behaves exactly like
-    tapping those buttons, just more interactive."""
-    st.iframe(
-        """
+    tapping those buttons, just more interactive.
+
+    Also fixes the "next card shows the answer instead of the question"
+    bug: Streamlit reuses the underlying DOM node for this markdown block
+    across reruns and only patches attributes, so the flip checkbox's live
+    `checked` property can survive from the previous card even though the
+    new card's HTML never sets it. We force it back to unchecked whenever
+    the card actually changed, while leaving it alone on reruns that
+    re-render the *same* card (e.g. after starring it) so we don't undo
+    the user's flip."""
+    script = """
         <script>
         (function() {
+            const doc = window.parent.document;
+            const currentCardId = "__CARD_ID__";
+            if (doc.body.dataset.fcLastCardId !== currentCardId) {
+                doc.body.dataset.fcLastCardId = currentCardId;
+                const toggle = doc.getElementById(currentCardId);
+                if (toggle) toggle.checked = false;
+            }
+
             function attach() {
-                const doc = window.parent.document;
                 const card = doc.querySelector('.fc-single-card');
                 if (!card || card.dataset.swipeBound === "1") return;
                 card.dataset.swipeBound = "1";
@@ -461,9 +478,8 @@ def _inject_swipe_handler():
             setTimeout(attach, 500);
         })();
         </script>
-        """,
-        height=1,
-    )
+        """
+    components_html(script.replace("__CARD_ID__", json.dumps(card_id)[1:-1]), height=1)
 
 
 def render_flashcard_deck():
@@ -567,7 +583,7 @@ def render_flashcard_deck():
         unsafe_allow_html=True,
     )
 
-    _inject_swipe_handler()
+    _inject_swipe_handler(card_id)
 
     if st.button("⭐ Unstar" if is_starred else "⭐ Star this card", key=f"star_{card_index}", use_container_width=True):
         st.session_state.flashcard_starred[card_index] = not is_starred
