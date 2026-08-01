@@ -24,11 +24,11 @@ _SETUP_CSS = """
     font-size: 0.72rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #B8860B;
+    color: #FFD166;
     margin-bottom: 0.3rem;
 }
 .fc-setup-sub {
-    color: #41507A;
+    color: #9FB0D9;
     font-size: 0.94rem;
     margin-bottom: 1.2rem;
 }
@@ -37,7 +37,7 @@ _SETUP_CSS = """
     font-size: 0.74rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #41507A;
+    color: #9FB0D9;
     margin: 1.1rem 0 0.5rem 0;
 }
 .fc-count-display {
@@ -50,57 +50,57 @@ _SETUP_CSS = """
     font-family: 'Source Serif 4', Georgia, serif;
     font-size: 2.4rem;
     font-weight: 700;
-    color: #1B2A4A;
+    color: #EAF0FF;
     animation: fcCountPop 0.25s ease;
 }
 .fc-count-unit {
     font-size: 0.9rem;
-    color: #6B7280;
+    color: #9FB0D9;
 }
 .fc-pill-row .stButton > button {
     border-radius: 999px !important;
-    border: 1px solid #E4E0D4 !important;
-    background: #FAFAF7 !important;
-    color: #1B2A4A !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+    background: rgba(255,255,255,0.045) !important;
+    color: #EAF0FF !important;
     font-size: 0.86rem !important;
     padding: 0.4rem 0.2rem !important;
     transition: transform 0.12s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 .fc-pill-row .stButton > button:hover:not(:disabled) {
-    border-color: #B8860B !important;
+    border-color: #FFD166 !important;
     transform: translateY(-1px);
 }
 .fc-pill-row .stButton > button[kind="primary"] {
-    background: #B8860B !important;
-    border-color: #B8860B !important;
-    color: #FFFFFF !important;
+    background: linear-gradient(120deg, #FFD166, #FF3EA5) !important;
+    border-color: #FFD166 !important;
+    color: #05060F !important;
     font-weight: 600 !important;
 }
 .fc-diff-row .stButton > button {
     border-radius: 999px !important;
-    border: 1px solid #E4E0D4 !important;
-    background: #FAFAF7 !important;
-    color: #1B2A4A !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+    background: rgba(255,255,255,0.045) !important;
+    color: #EAF0FF !important;
     font-size: 0.86rem !important;
     padding: 0.4rem 0.2rem !important;
     transition: transform 0.12s ease, border-color 0.15s ease, background-color 0.15s ease;
 }
 .fc-diff-row .stButton > button:hover:not(:disabled) {
-    border-color: #2F6F4E !important;
+    border-color: #22D3EE !important;
     transform: translateY(-1px);
 }
 .fc-diff-row .stButton > button[kind="primary"] {
-    background: #2F6F4E !important;
-    border-color: #2F6F4E !important;
-    color: #FFFFFF !important;
+    background: linear-gradient(120deg, #22D3EE, #7C5CFF) !important;
+    border-color: #22D3EE !important;
+    color: #05060F !important;
     font-weight: 600 !important;
 }
 .fc-setup-actions .stButton > button[kind="primary"] {
     animation: fcPulseReady 2.2s ease-in-out infinite;
 }
 @keyframes fcPulseReady {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(184, 134, 11, 0.0); }
-    50% { box-shadow: 0 0 0 6px rgba(184, 134, 11, 0.12); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255, 209, 102, 0.0); }
+    50% { box-shadow: 0 0 0 6px rgba(255, 209, 102, 0.18); }
 }
 @media (prefers-reduced-motion: reduce) {
     .fc-setup-actions .stButton > button[kind="primary"] { animation: none !important; }

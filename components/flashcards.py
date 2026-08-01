@@ -26,6 +26,186 @@ def parse_flashcards(markdown_text: str):
     return cards
 
 
+# ---- Gamification: XP / streak bookkeeping --------------------------------
+
+def _xp_for_level(level: int) -> int:
+    """XP threshold to reach `level` — a gentle upward curve (100, 220,
+    360, 520...) so early levels click by fast and it keeps giving a
+    reason to push through the deck."""
+    total = 0
+    for lv in range(1, level):
+        total += 100 + (lv - 1) * 20
+    return total
+
+
+def _level_for_xp(xp: int) -> int:
+    level = 1
+    while xp >= _xp_for_level(level + 1):
+        level += 1
+    return level
+
+
+def _register_answer(known: bool):
+    """Updates XP/streak state after a Know it / Still learning tap and
+    queues up the toast + sound + confetti that should fire on next render."""
+    st.session_state.setdefault("flashcard_xp", 0)
+    st.session_state.setdefault("flashcard_streak", 0)
+    st.session_state.setdefault("flashcard_best_streak", 0)
+
+    old_xp = st.session_state.flashcard_xp
+    old_level = _level_for_xp(old_xp)
+    streak = st.session_state.flashcard_streak
+
+    if known:
+        streak += 1
+        gain = 10 + min(streak, 6) * 5  # 15..40 XP, scales with streak
+    else:
+        streak = 0
+        gain = 4  # small participation XP so missing one never feels like a wall
+
+    new_xp = old_xp + gain
+    new_level = _level_for_xp(new_xp)
+
+    st.session_state.flashcard_xp = new_xp
+    st.session_state.flashcard_streak = streak
+    st.session_state.flashcard_best_streak = max(st.session_state.flashcard_best_streak, streak)
+
+    effect = {"sound": "know" if known else "learning", "toast": f"+{gain} XP", "confetti": False, "big": False}
+
+    if new_level > old_level:
+        effect.update(sound="levelup", confetti=True, toast=f"⭐ LEVEL {new_level}! +{gain} XP")
+    elif known and streak >= 3 and streak % 3 == 0:
+        effect.update(confetti=True, toast=f"🔥 {streak}-streak! +{gain} XP")
+    elif known and streak >= 2:
+        effect["toast"] = f"+{gain} XP · 🔥 x{streak}"
+
+    st.session_state.flashcard_pending_effect = effect
+
+
+_COLORS_JS = "['#22D3EE','#7C5CFF','#FF3EA5','#FFD166','#3DDC97']"
+
+
+def _effect_script(effect):
+    """Best-effort synthesized sound (Web Audio, no audio files) + a
+    floating XP toast + an optional confetti burst — all injected into
+    the parent document so they aren't clipped by the component iframe."""
+    if not effect:
+        return ""
+
+    sound = effect.get("sound")
+    toast = effect.get("toast")
+    confetti = effect.get("confetti")
+    big = effect.get("big")
+
+    sound_js = ""
+    if sound == "pop":
+        sound_js = "tone(720,0.08,'triangle',0,0.10);"
+    elif sound == "know":
+        sound_js = "tone(660,0.09,'sine',0,0.11);tone(990,0.11,'sine',0.07,0.11);"
+    elif sound == "learning":
+        sound_js = "tone(220,0.16,'sine',0,0.08);"
+    elif sound == "levelup":
+        sound_js = (
+            "tone(523,0.1,'square',0,0.09);tone(659,0.1,'square',0.1,0.09);"
+            "tone(784,0.1,'square',0.2,0.09);tone(1046,0.2,'square',0.3,0.1);"
+        )
+    elif sound == "fanfare":
+        sound_js = (
+            "tone(523,0.12,'triangle',0,0.1);tone(659,0.12,'triangle',0.12,0.1);"
+            "tone(784,0.12,'triangle',0.24,0.1);tone(1046,0.3,'triangle',0.36,0.12);"
+        )
+
+    confetti_js = f"confettiBurst({320 if big else 70}, {_COLORS_JS}, {'true' if big else 'false'});" if confetti else ""
+    toast_js = f"showToast({json.dumps(toast)});" if toast else ""
+
+    return f"""
+    <script>
+    (function() {{
+        function getCtx() {{
+            const w = window.parent;
+            try {{
+                if (!w.__fcAudio) w.__fcAudio = new (w.AudioContext || w.webkitAudioContext)();
+                if (w.__fcAudio.state === 'suspended') w.__fcAudio.resume().catch(function(){{}});
+                return w.__fcAudio;
+            }} catch (e) {{ return null; }}
+        }}
+        function tone(freq, dur, type, delay, vol) {{
+            const ctx = getCtx(); if (!ctx) return;
+            const t0 = ctx.currentTime + (delay || 0);
+            const osc = ctx.createOscillator(); const gain = ctx.createGain();
+            osc.type = type || 'sine'; osc.frequency.setValueAtTime(freq, t0);
+            gain.gain.setValueAtTime(0, t0);
+            gain.gain.linearRampToValueAtTime(vol || 0.1, t0 + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(t0); osc.stop(t0 + dur + 0.03);
+        }}
+        function confettiBurst(n, colors, big) {{
+            const doc = window.parent.document;
+            const canvas = doc.createElement('canvas');
+            canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:99999;';
+            canvas.width = doc.documentElement.clientWidth;
+            canvas.height = doc.documentElement.clientHeight;
+            doc.body.appendChild(canvas);
+            const ctx2 = canvas.getContext('2d');
+            const particles = [];
+            const cx = canvas.width / 2, cy = big ? canvas.height * 0.25 : canvas.height * 0.3;
+            for (let i = 0; i < n; i++) {{
+                particles.push({{
+                    x: big ? Math.random() * canvas.width : cx + (Math.random() - 0.5) * 180,
+                    y: big ? -20 : cy,
+                    vx: (Math.random() - 0.5) * (big ? 4 : 7),
+                    vy: big ? Math.random() * 2 + 1 : -(Math.random() * 6 + 4),
+                    size: Math.random() * 6 + 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    rot: Math.random() * 360,
+                    vr: (Math.random() - 0.5) * 12
+                }});
+            }}
+            let frame = 0;
+            const maxFrame = big ? 150 : 85;
+            function animate() {{
+                frame++;
+                ctx2.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(function(p) {{
+                    p.vy += 0.12; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+                    ctx2.save(); ctx2.translate(p.x, p.y); ctx2.rotate(p.rot * Math.PI / 180);
+                    ctx2.fillStyle = p.color;
+                    ctx2.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+                    ctx2.restore();
+                }});
+                if (frame < maxFrame) {{ requestAnimationFrame(animate); }} else {{ canvas.remove(); }}
+            }}
+            animate();
+        }}
+        function showToast(text) {{
+            const doc = window.parent.document;
+            const el = doc.createElement('div');
+            el.textContent = text;
+            el.style.cssText = 'position:fixed;top:16%;left:50%;transform:translate(-50%,0);' +
+                'background:rgba(10,14,30,0.92);border:1px solid rgba(255,209,102,0.55);color:#FFD166;' +
+                'font-family:"JetBrains Mono",monospace;font-weight:700;font-size:0.95rem;' +
+                'padding:0.5rem 1.1rem;border-radius:999px;z-index:99999;pointer-events:none;' +
+                'box-shadow:0 10px 30px rgba(0,0,0,0.45);opacity:0;transition:all 0.35s ease;white-space:nowrap;';
+            doc.body.appendChild(el);
+            requestAnimationFrame(function() {{ el.style.opacity = '1'; el.style.transform = 'translate(-50%,-14px)'; }});
+            setTimeout(function() {{ el.style.opacity = '0'; el.style.transform = 'translate(-50%,-34px)'; }}, 1150);
+            setTimeout(function() {{ el.remove(); }}, 1550);
+        }}
+        {sound_js}
+        {toast_js}
+        {confetti_js}
+    }})();
+    </script>
+    """
+
+
+def _fire_pending_effect():
+    effect = st.session_state.pop("flashcard_pending_effect", None)
+    if effect:
+        components_html(_effect_script(effect), height=1)
+
+
 _DECK_CSS = """
 <style>
 @keyframes fcFadeInUp {
@@ -44,16 +224,59 @@ _DECK_CSS = """
     0%   { opacity: 0; transform: scale(0.94); }
     100% { opacity: 1; transform: scale(1); }
 }
+@keyframes fcLevelGlow {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,209,102,0.0); }
+    50%      { box-shadow: 0 0 16px 3px rgba(255,209,102,0.35); }
+}
 .fc-topbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0.2rem;
 }
+.fc-xp-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.5rem 0 0.6rem 0;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.fc-xp-badge {
+    flex-shrink: 0;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #05060F;
+    background: linear-gradient(120deg, #FFD166, #FF3EA5);
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    animation: fcLevelGlow 2.4s ease-in-out infinite;
+    white-space: nowrap;
+}
+.fc-xp-track {
+    flex: 1;
+    height: 8px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.fc-xp-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #22D3EE, #7C5CFF, #FF3EA5);
+    transition: width 0.5s cubic-bezier(0.22,1,0.36,1);
+}
+.fc-streak-badge {
+    flex-shrink: 0;
+    font-size: 0.76rem;
+    color: #FFD166;
+    white-space: nowrap;
+}
 .fc-progress-track {
     width: 100%;
     height: 8px;
-    background: #F1EFE7;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
     border-radius: 6px;
     overflow: hidden;
     margin: 0.35rem 0 0.5rem 0;
@@ -61,13 +284,13 @@ _DECK_CSS = """
 .fc-progress-fill {
     height: 100%;
     border-radius: 6px;
-    background: linear-gradient(90deg, #B8860B, #2F6F4E);
+    background: linear-gradient(90deg, #7C5CFF, #22D3EE);
     transition: width 0.4s ease;
 }
 .fc-stats-row {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 0.76rem;
-    color: #41507A;
+    color: #9FB0D9;
     margin-bottom: 0.7rem;
 }
 .fc-deck-wrap.fc-anim-next {
@@ -87,21 +310,15 @@ _DECK_CSS = """
 }
 .fc-swipe-hint {
     text-align: center;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 0.72rem;
     letter-spacing: 0.02em;
-    color: #6B7280;
+    color: #9FB0D9;
     margin: 0.1rem 0 0.5rem 0;
 }
-.fc-swipe-hint b {
-    color: #2F6F4E;
-}
-.fc-swipe-hint b.fc-hint-no {
-    color: #A3402A;
-}
-.fc-toggle {
-    display: none;
-}
+.fc-swipe-hint b { color: #3DDC97; }
+.fc-swipe-hint b.fc-hint-no { color: #FF5C7A; }
+.fc-toggle { display: none; }
 .fc-card-inner {
     position: relative;
     width: 100%;
@@ -111,15 +328,13 @@ _DECK_CSS = """
     transition: transform 0.5s;
     transform-style: preserve-3d;
 }
-.fc-toggle:checked ~ .fc-card-inner {
-    transform: rotateY(180deg);
-}
+.fc-toggle:checked ~ .fc-card-inner { transform: rotateY(180deg); }
 .fc-card-face {
     position: absolute;
     inset: 0;
     backface-visibility: hidden;
-    border-radius: 16px;
-    border: 1px solid #E4E0D4;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.16);
     padding: 1.6rem 1.8rem;
     display: flex;
     flex-direction: column;
@@ -127,104 +342,86 @@ _DECK_CSS = """
     align-items: center;
     text-align: center;
     gap: 0.6rem;
-    box-shadow: 0 6px 20px rgba(27, 42, 74, 0.07);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    box-shadow: 0 18px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12);
 }
 .fc-card-front {
-    background: #FFFFFF;
+    background: linear-gradient(155deg, rgba(124,92,255,0.16), rgba(255,255,255,0.04));
 }
 .fc-card-back {
-    background: #EFF3EE;
+    background: linear-gradient(155deg, rgba(34,211,238,0.16), rgba(255,255,255,0.04));
     transform: rotateY(180deg);
 }
 .fc-card-label-q {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 0.72rem;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #B8860B;
+    color: #FFD166;
 }
 .fc-card-label-a {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 0.72rem;
-    letter-spacing: 0.08em;
+    letter-spacing: 0.1em;
     text-transform: uppercase;
-    color: #2F6F4E;
+    color: #22D3EE;
 }
 .fc-card-text {
     font-size: 1.12rem;
-    color: #1B2A4A;
+    color: #EAF0FF;
     line-height: 1.5;
     max-height: 190px;
     overflow-y: auto;
 }
-.fc-card-hint {
-    font-size: 0.72rem;
-    color: #6B7280;
-    margin-top: auto;
-}
+.fc-card-hint { font-size: 0.72rem; color: #9FB0D9; margin-top: auto; }
 .fc-star-badge {
     position: absolute;
     top: 0.7rem;
     right: 0.9rem;
     font-size: 1.1rem;
+    filter: drop-shadow(0 0 6px rgba(255,209,102,0.6));
 }
 .fc-done-burst {
     text-align: center;
-    font-size: 2.1rem;
+    font-size: 2.3rem;
     animation: fcPopIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
     margin-bottom: 0.2rem;
 }
 .fc-know-btn .stButton > button {
-    border: 1px solid #2F6F4E !important;
-    color: #2F6F4E !important;
+    border: 1px solid #3DDC97 !important;
+    color: #3DDC97 !important;
     border-radius: 10px !important;
+    background: rgba(61,220,151,0.08) !important;
 }
-.fc-know-btn .stButton > button:hover:not(:disabled) {
-    background: #EFF3EE !important;
-}
+.fc-know-btn .stButton > button:hover:not(:disabled) { background: rgba(61,220,151,0.18) !important; }
 .fc-learning-btn .stButton > button {
-    border: 1px solid #A3402A !important;
-    color: #A3402A !important;
+    border: 1px solid #FF5C7A !important;
+    color: #FF5C7A !important;
     border-radius: 10px !important;
+    background: rgba(255,92,122,0.08) !important;
 }
-.fc-learning-btn .stButton > button:hover:not(:disabled) {
-    background: #FBEDE8 !important;
-}
-.fc-single-card {
-    transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.fc-single-card:hover {
-    transform: translateY(-3px);
-}
-.fc-card-face {
-    transition: box-shadow 0.25s ease;
-}
-.fc-single-card:hover .fc-card-face {
-    box-shadow: 0 12px 28px rgba(27, 42, 74, 0.12);
-}
-.fc-star-badge {
-    animation: fcPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
-}
-.fc-progress-fill {
-    position: relative;
-    overflow: hidden;
-}
-.fc-progress-fill::after {
+.fc-learning-btn .stButton > button:hover:not(:disabled) { background: rgba(255,92,122,0.18) !important; }
+.fc-single-card { transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
+.fc-single-card:hover { transform: translateY(-4px) scale(1.01); }
+.fc-single-card:hover .fc-card-face { box-shadow: 0 22px 50px rgba(0,0,0,0.55), 0 0 30px rgba(124,92,255,0.18); }
+.fc-star-badge { animation: fcPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
+.fc-progress-fill, .fc-xp-fill { position: relative; overflow: hidden; }
+.fc-progress-fill::after, .fc-xp-fill::after {
     content: "";
     position: absolute; inset: 0;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.4), transparent);
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
     animation: fcShine 1.8s ease-in-out infinite;
 }
 @keyframes fcShine {
     0%   { transform: translateX(-100%); }
     100% { transform: translateX(100%); }
 }
-.fc-topbar, .fc-stats-row {
-    animation: fcFadeInUp 0.35s ease both;
-}
+.fc-topbar, .fc-stats-row, .fc-xp-bar-wrap { animation: fcFadeInUp 0.35s ease both; }
 @media (prefers-reduced-motion: reduce) {
-    .fc-progress-fill::after { animation: none !important; }
+    .fc-progress-fill::after, .fc-xp-fill::after { animation: none !important; }
     .fc-single-card:hover { transform: none; }
+    .fc-xp-badge { animation: none !important; }
 }
 </style>
 """
@@ -272,13 +469,8 @@ def render_flashcards(cards, key_prefix="fc"):
             gap: 1rem;
             margin: 0.6rem 0 1rem 0;
         }}
-        .flip-card {{
-            perspective: 1200px;
-            height: 190px;
-        }}
-        .flip-toggle {{
-            display: none;
-        }}
+        .flip-card {{ perspective: 1200px; height: 190px; }}
+        .flip-toggle {{ display: none; }}
         .flip-card-inner {{
             position: relative;
             width: 100%;
@@ -288,55 +480,48 @@ def render_flashcards(cards, key_prefix="fc"):
             transition: transform 0.5s;
             transform-style: preserve-3d;
         }}
-        .flip-toggle:checked ~ .flip-card-inner {{
-            transform: rotateY(180deg);
-        }}
+        .flip-toggle:checked ~ .flip-card-inner {{ transform: rotateY(180deg); }}
         .flip-card-face {{
             position: absolute;
             inset: 0;
             backface-visibility: hidden;
-            border-radius: 12px;
-            border: 1px solid #E4E0D4;
+            border-radius: 14px;
+            border: 1px solid rgba(255,255,255,0.14);
             padding: 1rem 1.1rem;
             display: flex;
             flex-direction: column;
             justify-content: center;
             gap: 0.35rem;
-            box-shadow: 1px 2px 0 rgba(27, 42, 74, 0.05);
+            backdrop-filter: blur(12px);
+            box-shadow: 0 10px 24px rgba(0,0,0,0.35);
         }}
-        .flip-card-front {{
-            background: #FFFFFF;
-        }}
+        .flip-card-front {{ background: linear-gradient(155deg, rgba(124,92,255,0.14), rgba(255,255,255,0.03)); }}
         .flip-card-back {{
-            background: #EFF3EE;
+            background: linear-gradient(155deg, rgba(34,211,238,0.14), rgba(255,255,255,0.03));
             transform: rotateY(180deg);
         }}
         .flash-q {{
-            font-family: 'IBM Plex Mono', ui-monospace, monospace;
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
             font-size: 0.72rem;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            color: #B8860B;
+            color: #FFD166;
         }}
         .flash-a {{
-            font-family: 'IBM Plex Mono', ui-monospace, monospace;
+            font-family: 'JetBrains Mono', ui-monospace, monospace;
             font-size: 0.72rem;
             letter-spacing: 0.06em;
             text-transform: uppercase;
-            color: #2F6F4E;
+            color: #22D3EE;
         }}
         .flip-card-text {{
             font-size: 0.92rem;
-            color: #1B2A4A;
+            color: #EAF0FF;
             line-height: 1.4;
             overflow-y: auto;
             max-height: 90px;
         }}
-        .flip-hint {{
-            font-size: 0.68rem;
-            color: #6B7280;
-            margin-top: auto;
-        }}
+        .flip-hint {{ font-size: 0.68rem; color: #9FB0D9; margin-top: auto; }}
         </style>
         <div class="flip-grid">
             {cards_html}
@@ -350,8 +535,9 @@ def _inject_swipe_handler(card_id):
     """Makes the currently-rendered .fc-single-card draggable with touch/
     mouse, showing live KNOW-IT / LEARNING badges as it's dragged, and
     firing the real 'Know it' / 'Still learning' Streamlit buttons once
-    the drag passes a threshold — so a swipe behaves exactly like
-    tapping those buttons, just more interactive.
+    the drag passes a threshold. Also plays a short "pop" tone directly
+    on tap-to-flip, bound inside the same user-gesture click handler so
+    it isn't blocked by autoplay policies.
 
     Also fixes the "next card shows the answer instead of the question"
     bug: Streamlit reuses the underlying DOM node for this markdown block
@@ -372,6 +558,26 @@ def _inject_swipe_handler(card_id):
                 if (toggle) toggle.checked = false;
             }
 
+            function getCtx() {
+                const w = window.parent;
+                try {
+                    if (!w.__fcAudio) w.__fcAudio = new (w.AudioContext || w.webkitAudioContext)();
+                    if (w.__fcAudio.state === 'suspended') w.__fcAudio.resume().catch(function(){});
+                    return w.__fcAudio;
+                } catch (e) { return null; }
+            }
+            function pop() {
+                const ctx = getCtx(); if (!ctx) return;
+                const t0 = ctx.currentTime;
+                const osc = ctx.createOscillator(); const gain = ctx.createGain();
+                osc.type = 'triangle'; osc.frequency.setValueAtTime(720, t0);
+                gain.gain.setValueAtTime(0, t0);
+                gain.gain.linearRampToValueAtTime(0.09, t0 + 0.01);
+                gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.09);
+                osc.connect(gain); gain.connect(ctx.destination);
+                osc.start(t0); osc.stop(t0 + 0.12);
+            }
+
             function attach() {
                 const card = doc.querySelector('.fc-single-card');
                 if (!card || card.dataset.swipeBound === "1") return;
@@ -383,18 +589,18 @@ def _inject_swipe_handler(card_id):
                 likeBadge.textContent = '✅ KNOW IT';
                 likeBadge.style.cssText =
                     'position:absolute;top:14px;left:14px;padding:6px 12px;' +
-                    'border:3px solid #2F6F4E;color:#2F6F4E;font-weight:700;' +
+                    'border:3px solid #3DDC97;color:#3DDC97;font-weight:700;' +
                     'border-radius:8px;transform:rotate(-10deg);opacity:0;' +
                     'pointer-events:none;font-family:monospace;font-size:0.85rem;' +
-                    'z-index:20;background:rgba(255,255,255,0.92);';
+                    'z-index:20;background:rgba(5,6,15,0.85);';
                 const nopeBadge = doc.createElement('div');
                 nopeBadge.textContent = '❌ LEARNING';
                 nopeBadge.style.cssText =
                     'position:absolute;top:14px;right:14px;padding:6px 12px;' +
-                    'border:3px solid #A3402A;color:#A3402A;font-weight:700;' +
+                    'border:3px solid #FF5C7A;color:#FF5C7A;font-weight:700;' +
                     'border-radius:8px;transform:rotate(10deg);opacity:0;' +
                     'pointer-events:none;font-family:monospace;font-size:0.85rem;' +
-                    'z-index:20;background:rgba(255,255,255,0.92);';
+                    'z-index:20;background:rgba(5,6,15,0.85);';
                 card.appendChild(likeBadge);
                 card.appendChild(nopeBadge);
 
@@ -469,7 +675,7 @@ def _inject_swipe_handler(card_id):
                 const label = card.querySelector('label.fc-card-inner');
                 if (label) {
                     label.addEventListener('click', function(e) {
-                        if (moved) { e.preventDefault(); }
+                        if (moved) { e.preventDefault(); } else { pop(); }
                     });
                 }
             }
@@ -484,11 +690,18 @@ def _inject_swipe_handler(card_id):
 
 def render_flashcard_deck():
     """Full-slide, one-card-at-a-time deck with flip + swipe-in animation,
-    know/still-learning tracking, starring, and shuffle."""
+    know/still-learning tracking, starring, shuffle, and a full XP/streak
+    gamification layer (confetti + synth sound on streak milestones,
+    level-ups, and deck completion)."""
     if st.session_state.get("flashcard_stage") != "active" or not st.session_state.get("flashcards"):
         return
 
+    st.session_state.setdefault("flashcard_xp", 0)
+    st.session_state.setdefault("flashcard_streak", 0)
+    st.session_state.setdefault("flashcard_best_streak", 0)
+
     st.markdown(_DECK_CSS, unsafe_allow_html=True)
+    _fire_pending_effect()
 
     cards = st.session_state.flashcards
     order = st.session_state.flashcard_order
@@ -504,6 +717,22 @@ def render_flashcard_deck():
             _exit_deck()
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
+
+    xp = st.session_state.flashcard_xp
+    level = _level_for_xp(xp)
+    level_floor = _xp_for_level(level)
+    level_ceiling = _xp_for_level(level + 1)
+    xp_pct = int(((xp - level_floor) / max(1, level_ceiling - level_floor)) * 100)
+    streak = st.session_state.flashcard_streak
+
+    st.markdown(
+        f'<div class="fc-xp-bar-wrap">'
+        f'<div class="fc-xp-badge">⭐ LVL {level}</div>'
+        f'<div class="fc-xp-track"><div class="fc-xp-fill" style="width:{xp_pct}%;"></div></div>'
+        f'<div class="fc-streak-badge">{"🔥 " + str(streak) + " streak" if streak else "✨ " + str(xp) + " XP"}</div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
     done = current >= total
     progress_pct = int((min(current, total) / total) * 100) if total else 0
@@ -606,6 +835,7 @@ def render_flashcard_deck():
         st.markdown('<div class="fc-learning-btn">', unsafe_allow_html=True)
         if st.button("❌ Still learning", key=f"learning_{card_index}", use_container_width=True):
             st.session_state.flashcard_known[card_index] = False
+            _register_answer(False)
             st.session_state.flashcard_current += 1
             st.session_state.flashcard_direction = "next"
             st.rerun()
@@ -614,6 +844,7 @@ def render_flashcard_deck():
         st.markdown('<div class="fc-know-btn">', unsafe_allow_html=True)
         if st.button("✅ Know it", key=f"know_{card_index}", use_container_width=True):
             st.session_state.flashcard_known[card_index] = True
+            _register_answer(True)
             st.session_state.flashcard_current += 1
             st.session_state.flashcard_direction = "next"
             st.rerun()
@@ -629,13 +860,30 @@ def _render_grid_view(cards):
 
 
 def _render_deck_complete(total, known_count, learning_count, starred_count):
+    if not st.session_state.get("flashcard_complete_celebrated"):
+        st.session_state.flashcard_complete_celebrated = True
+        big_win = learning_count == 0
+        components_html(
+            _effect_script(
+                {
+                    "sound": "fanfare",
+                    "confetti": True,
+                    "big": big_win,
+                    "toast": "🏆 Deck complete!" if big_win else "🎉 Deck complete!",
+                }
+            ),
+            height=1,
+        )
+
     st.markdown('<div class="fc-single-card" style="height:auto;">', unsafe_allow_html=True)
     st.markdown('<div class="fc-done-burst">🎉</div>', unsafe_allow_html=True)
     st.markdown("### Deck complete")
     st.markdown(
         f"**{known_count}/{total}** marked know-it &nbsp;·&nbsp; "
         f"**{learning_count}/{total}** still learning &nbsp;·&nbsp; "
-        f"**{starred_count}** starred"
+        f"**{starred_count}** starred &nbsp;·&nbsp; "
+        f"**⭐ {st.session_state.flashcard_xp} XP** &nbsp;·&nbsp; "
+        f"**🔥 best streak {st.session_state.flashcard_best_streak}**"
     )
 
     if learning_count:
@@ -649,6 +897,7 @@ def _render_deck_complete(total, known_count, learning_count, starred_count):
             st.session_state.flashcard_current = 0
             st.session_state.flashcard_known = {}
             st.session_state.flashcard_direction = "next"
+            st.session_state.flashcard_complete_celebrated = False
             st.rerun()
     with col2:
         if st.button("🔲 Review all", use_container_width=True, key="fc_complete_review_all"):
@@ -671,3 +920,8 @@ def _exit_deck():
     st.session_state.flashcard_starred = {}
     st.session_state.flashcard_direction = "next"
     st.session_state.flashcard_view = "deck"
+    st.session_state.flashcard_xp = 0
+    st.session_state.flashcard_streak = 0
+    st.session_state.flashcard_best_streak = 0
+    st.session_state.flashcard_complete_celebrated = False
+    st.session_state.flashcard_pending_effect = None

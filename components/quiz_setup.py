@@ -11,32 +11,33 @@ _SETUP_CSS = """
     to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 .quiz-setup-slide {
-    background: var(--paper-raised, #FFFFFF);
-    border: 1px solid #E4E0D4;
+    background: var(--paper-raised, rgba(255,255,255,0.055));
+    border: 1px solid rgba(255,255,255,0.14);
+    backdrop-filter: blur(20px);
     border-radius: 16px;
     padding: 2rem 2.2rem 1.6rem 2.2rem;
     max-width: 640px;
     margin: 1rem auto 0 auto;
     animation: qSlideIn 0.4s cubic-bezier(0.22, 1, 0.36, 1);
-    box-shadow: 0 6px 24px rgba(27, 42, 74, 0.06);
+    box-shadow: 0 20px 50px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.1);
 }
 .quiz-setup-eyebrow {
     font-family: 'IBM Plex Mono', ui-monospace, monospace;
     font-size: 0.72rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #2F6F4E;
+    color: #22D3EE;
     margin-bottom: 0.3rem;
 }
 .quiz-setup-title {
     font-family: 'Source Serif 4', Georgia, serif;
     font-size: 1.7rem;
     font-weight: 600;
-    color: #1B2A4A;
+    color: #EAF0FF;
     margin: 0 0 0.3rem 0;
 }
 .quiz-setup-sub {
-    color: #41507A;
+    color: #9FB0D9;
     font-size: 0.94rem;
     margin-bottom: 1.5rem;
 }
@@ -45,31 +46,31 @@ _SETUP_CSS = """
     font-size: 0.74rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #41507A;
+    color: #9FB0D9;
     margin: 1.1rem 0 0.5rem 0;
 }
 .quiz-setup-hint {
-    color: #6B6455;
+    color: #9FB0D9;
     font-size: 0.78rem;
     margin: -0.3rem 0 0.4rem 0;
 }
 .quiz-pill-row .stButton > button {
     border-radius: 999px !important;
-    border: 1px solid #E4E0D4 !important;
-    background: #FAFAF7 !important;
-    color: #1B2A4A !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+    background: rgba(255,255,255,0.045) !important;
+    color: #EAF0FF !important;
     font-size: 0.86rem !important;
     padding: 0.4rem 0.2rem !important;
     transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s ease, background-color 0.15s ease;
 }
 .quiz-pill-row .stButton > button:hover:not(:disabled) {
-    border-color: #2F6F4E !important;
+    border-color: #22D3EE !important;
     transform: translateY(-1px);
 }
 .quiz-pill-row .stButton > button[kind="primary"] {
-    background: #2F6F4E !important;
-    border-color: #2F6F4E !important;
-    color: #FFFFFF !important;
+    background: linear-gradient(120deg, #22D3EE, #7C5CFF) !important;
+    border-color: #22D3EE !important;
+    color: #05060F !important;
     font-weight: 600 !important;
     animation: qPillPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -82,8 +83,8 @@ _SETUP_CSS = """
     animation: qPulseReady 2.2s ease-in-out infinite;
 }
 @keyframes qPulseReady {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(47, 111, 78, 0.0); }
-    50% { box-shadow: 0 0 0 6px rgba(47, 111, 78, 0.10); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(34, 211, 238, 0.0); }
+    50% { box-shadow: 0 0 0 6px rgba(34, 211, 238, 0.16); }
 }
 @media (prefers-reduced-motion: reduce) {
     .quiz-setup-actions .stButton > button[kind="primary"] { animation: none !important; }

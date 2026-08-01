@@ -1,3 +1,4 @@
+import json
 import time
 
 import streamlit as st
@@ -13,7 +14,19 @@ _QUIZ_CSS = """
     0%   { opacity: 0; transform: scale(0.94); }
     100% { opacity: 1; transform: scale(1); }
 }
+@keyframes qGlowPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(255,209,102,0.0); }
+    50%      { box-shadow: 0 0 16px 3px rgba(255,209,102,0.32); }
+}
 .quiz-card {
+    background: rgba(255,255,255,0.055);
+    border: 1px solid rgba(255,255,255,0.14);
+    border-radius: 16px;
+    padding: 1.4rem 1.5rem;
+    margin-bottom: 1rem;
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    box-shadow: 0 14px 34px rgba(0,0,0,0.35);
     animation: qFadeInUp 0.35s ease-out;
 }
 .quiz-topbar {
@@ -23,18 +36,51 @@ _QUIZ_CSS = """
     margin-bottom: 0.2rem;
 }
 .quiz-exit-note {
-    font-family: 'IBM Plex Mono', ui-monospace, monospace;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
     font-size: 0.72rem;
-    color: #41507A;
+    color: #9FB0D9;
+}
+.q-xp-bar-wrap {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin: 0.5rem 0 0.6rem 0;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+.q-xp-badge {
+    flex-shrink: 0;
+    font-size: 0.74rem;
+    font-weight: 700;
+    color: #05060F;
+    background: linear-gradient(120deg, #FFD166, #FF3EA5);
+    padding: 0.22rem 0.6rem;
+    border-radius: 999px;
+    animation: qGlowPulse 2.4s ease-in-out infinite;
+    white-space: nowrap;
+}
+.q-xp-track {
+    flex: 1;
+    height: 8px;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.q-xp-fill {
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #22D3EE, #7C5CFF, #FF3EA5);
+    transition: width 0.6s cubic-bezier(0.22,1,0.36,1);
 }
 .quiz-option-row .stButton > button {
     text-align: left;
     justify-content: flex-start;
-    border-radius: 10px;
-    border: 1px solid #E4E0D4;
-    background: #FFFFFF;
+    border-radius: 12px;
+    border: 1px solid rgba(255,255,255,0.14);
+    background: rgba(255,255,255,0.045);
+    color: #EAF0FF;
     padding: 0.65rem 1rem;
-    font-size: 0.92rem;
+    backdrop-filter: blur(10px);
     animation: qFadeInUp 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
     transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
@@ -43,21 +89,23 @@ _QUIZ_CSS = """
 .quiz-option-row div[data-testid="column"]:nth-of-type(3) .stButton > button { animation-delay: 0.12s; }
 .quiz-option-row div[data-testid="column"]:nth-of-type(4) .stButton > button { animation-delay: 0.17s; }
 .quiz-option-row .stButton > button:hover:not(:disabled) {
-    border-color: #2F6F4E;
+    border-color: #22D3EE;
     transform: translateX(4px);
-    box-shadow: 0 4px 12px rgba(27, 42, 74, 0.06);
+    box-shadow: 0 4px 16px rgba(34,211,238,0.15);
 }
 .quiz-option-row .stButton > button[kind="primary"] {
-    background: #EFF3EE !important;
-    border: 1px solid #2F6F4E !important;
-    color: #1B2A4A !important;
+    background: linear-gradient(120deg, rgba(34,211,238,0.22), rgba(124,92,255,0.22)) !important;
+    border: 1px solid #22D3EE !important;
+    color: #EAF0FF !important;
     font-weight: 600 !important;
     animation: qPopIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) !important;
+    box-shadow: 0 0 16px rgba(34,211,238,0.25);
 }
 .quiz-progress-track {
     width: 100%;
     height: 8px;
-    background: #F1EFE7;
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(255,255,255,0.12);
     border-radius: 6px;
     overflow: hidden;
     margin: 0.35rem 0 0.9rem 0;
@@ -66,7 +114,7 @@ _QUIZ_CSS = """
     position: relative;
     height: 100%;
     border-radius: 6px;
-    background: linear-gradient(90deg, #2F6F4E, #B8860B);
+    background: linear-gradient(90deg, #7C5CFF, #22D3EE);
     transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
     overflow: hidden;
 }
@@ -82,12 +130,13 @@ _QUIZ_CSS = """
 }
 .quiz-result-burst {
     text-align: center;
-    font-size: 2.1rem;
+    font-size: 2.3rem;
     animation: qPopIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
     margin-bottom: 0.2rem;
 }
 @media (prefers-reduced-motion: reduce) {
     .quiz-progress-fill::after { animation: none !important; }
+    .q-xp-badge { animation: none !important; }
 }
 </style>
 """
@@ -111,7 +160,7 @@ _PALETTE_CSS = """
 div[class*="st-key-palette_"] button {
     border-radius: 8px !important;
     padding: 0.3rem 0 !important;
-    font-family: 'IBM Plex Mono', ui-monospace, monospace !important;
+    font-family: 'JetBrains Mono', ui-monospace, monospace !important;
     font-size: 0.78rem !important;
     font-weight: 600 !important;
     border: 1px solid transparent !important;
@@ -121,43 +170,43 @@ div[class*="st-key-palette_"] button {
 }
 div[class*="st-key-palette_"] button:hover:not(:disabled) {
     transform: translateY(-2px) scale(1.05) !important;
-    box-shadow: 0 4px 10px rgba(27, 42, 74, 0.14) !important;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important;
 }
 div[class*="st-key-palette_pnv_"] button {
-    background: #F1EFE7 !important;
-    color: #6B6455 !important;
-    border-color: #E4E0D4 !important;
+    background: rgba(255,255,255,0.06) !important;
+    color: #9FB0D9 !important;
+    border-color: rgba(255,255,255,0.14) !important;
 }
 div[class*="st-key-palette_pvu_"] button {
-    background: #FBE4DC !important;
-    color: #A3402A !important;
-    border-color: #E9B9A8 !important;
+    background: rgba(255,92,122,0.16) !important;
+    color: #FF5C7A !important;
+    border-color: rgba(255,92,122,0.4) !important;
 }
 div[class*="st-key-palette_pans_"] button {
-    background: #2F6F4E !important;
-    color: #FFFFFF !important;
+    background: linear-gradient(120deg, #22D3EE, #3DDC97) !important;
+    color: #05060F !important;
 }
 div[class*="st-key-palette_pflg_"] button {
-    background: #7C4FA0 !important;
+    background: #7C5CFF !important;
     color: #FFFFFF !important;
 }
 div[class*="st-key-palette_pafl_"] button {
-    background: linear-gradient(135deg, #2F6F4E 50%, #7C4FA0 50%) !important;
+    background: linear-gradient(135deg, #22D3EE 50%, #7C5CFF 50%) !important;
     color: #FFFFFF !important;
 }
 div[class*="st-key-palette_"] button[kind="primary"] {
-    outline: 2px solid #1B2A4A !important;
+    outline: 2px solid #EAF0FF !important;
     outline-offset: 1px !important;
     animation: qPopIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) both, palettePulse 2s ease-in-out infinite !important;
 }
 @keyframes palettePulse {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(27, 42, 74, 0.0); }
-    50%      { box-shadow: 0 0 0 4px rgba(27, 42, 74, 0.14); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(234, 240, 255, 0.0); }
+    50%      { box-shadow: 0 0 0 4px rgba(234, 240, 255, 0.16); }
 }
 .quiz-legend-row {
     display: flex; flex-wrap: wrap; gap: 0.55rem;
-    font-size: 0.68rem; font-family: 'IBM Plex Mono', ui-monospace, monospace;
-    color: #41507A; margin: 0.4rem 0 0.7rem 0;
+    font-size: 0.68rem; font-family: 'JetBrains Mono', ui-monospace, monospace;
+    color: #9FB0D9; margin: 0.4rem 0 0.7rem 0;
 }
 .quiz-legend-dot {
     display: inline-block; width: 0.6rem; height: 0.6rem; border-radius: 3px;
@@ -171,6 +220,139 @@ div[class*="st-key-palette_"] button[kind="primary"] {
 """
 
 
+# ---- Gamification: shared sound / confetti / toast effect layer ----------
+
+def _xp_for_level(level: int) -> int:
+    total = 0
+    for lv in range(1, level):
+        total += 100 + (lv - 1) * 20
+    return total
+
+
+def _level_for_xp(xp: int) -> int:
+    level = 1
+    while xp >= _xp_for_level(level + 1):
+        level += 1
+    return level
+
+
+_COLORS_JS = "['#22D3EE','#7C5CFF','#FF3EA5','#FFD166','#3DDC97']"
+
+
+def _effect_script(effect):
+    """Best-effort synthesized sound (Web Audio, no audio files) + a
+    floating toast + an optional confetti burst, injected into the
+    parent document so they aren't clipped by the component iframe."""
+    if not effect:
+        return ""
+
+    sound = effect.get("sound")
+    toast = effect.get("toast")
+    confetti = effect.get("confetti")
+    big = effect.get("big")
+
+    sound_js = ""
+    if sound == "pop":
+        sound_js = "tone(760,0.06,'triangle',0,0.08);"
+    elif sound == "fanfare":
+        sound_js = (
+            "tone(523,0.12,'triangle',0,0.1);tone(659,0.12,'triangle',0.12,0.1);"
+            "tone(784,0.12,'triangle',0.24,0.1);tone(1046,0.3,'triangle',0.36,0.12);"
+        )
+    elif sound == "soft":
+        sound_js = "tone(300,0.18,'sine',0,0.08);tone(240,0.2,'sine',0.1,0.07);"
+
+    confetti_js = f"confettiBurst({320 if big else 90}, {_COLORS_JS}, {'true' if big else 'false'});" if confetti else ""
+    toast_js = f"showToast({json.dumps(toast)});" if toast else ""
+
+    return f"""
+    <script>
+    (function() {{
+        function getCtx() {{
+            const w = window.parent;
+            try {{
+                if (!w.__fcAudio) w.__fcAudio = new (w.AudioContext || w.webkitAudioContext)();
+                if (w.__fcAudio.state === 'suspended') w.__fcAudio.resume().catch(function(){{}});
+                return w.__fcAudio;
+            }} catch (e) {{ return null; }}
+        }}
+        function tone(freq, dur, type, delay, vol) {{
+            const ctx = getCtx(); if (!ctx) return;
+            const t0 = ctx.currentTime + (delay || 0);
+            const osc = ctx.createOscillator(); const gain = ctx.createGain();
+            osc.type = type || 'sine'; osc.frequency.setValueAtTime(freq, t0);
+            gain.gain.setValueAtTime(0, t0);
+            gain.gain.linearRampToValueAtTime(vol || 0.1, t0 + 0.01);
+            gain.gain.exponentialRampToValueAtTime(0.001, t0 + dur);
+            osc.connect(gain); gain.connect(ctx.destination);
+            osc.start(t0); osc.stop(t0 + dur + 0.03);
+        }}
+        function confettiBurst(n, colors, big) {{
+            const doc = window.parent.document;
+            const canvas = doc.createElement('canvas');
+            canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:99999;';
+            canvas.width = doc.documentElement.clientWidth;
+            canvas.height = doc.documentElement.clientHeight;
+            doc.body.appendChild(canvas);
+            const ctx2 = canvas.getContext('2d');
+            const particles = [];
+            const cx = canvas.width / 2, cy = big ? canvas.height * 0.25 : canvas.height * 0.3;
+            for (let i = 0; i < n; i++) {{
+                particles.push({{
+                    x: big ? Math.random() * canvas.width : cx + (Math.random() - 0.5) * 200,
+                    y: big ? -20 : cy,
+                    vx: (Math.random() - 0.5) * (big ? 4 : 7),
+                    vy: big ? Math.random() * 2 + 1 : -(Math.random() * 6 + 4),
+                    size: Math.random() * 6 + 4,
+                    color: colors[Math.floor(Math.random() * colors.length)],
+                    rot: Math.random() * 360,
+                    vr: (Math.random() - 0.5) * 12
+                }});
+            }}
+            let frame = 0;
+            const maxFrame = big ? 160 : 90;
+            function animate() {{
+                frame++;
+                ctx2.clearRect(0, 0, canvas.width, canvas.height);
+                particles.forEach(function(p) {{
+                    p.vy += 0.12; p.x += p.vx; p.y += p.vy; p.rot += p.vr;
+                    ctx2.save(); ctx2.translate(p.x, p.y); ctx2.rotate(p.rot * Math.PI / 180);
+                    ctx2.fillStyle = p.color;
+                    ctx2.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+                    ctx2.restore();
+                }});
+                if (frame < maxFrame) {{ requestAnimationFrame(animate); }} else {{ canvas.remove(); }}
+            }}
+            animate();
+        }}
+        function showToast(text) {{
+            const doc = window.parent.document;
+            const el = doc.createElement('div');
+            el.textContent = text;
+            el.style.cssText = 'position:fixed;top:16%;left:50%;transform:translate(-50%,0);' +
+                'background:rgba(10,14,30,0.92);border:1px solid rgba(255,209,102,0.55);color:#FFD166;' +
+                'font-family:"JetBrains Mono",monospace;font-weight:700;font-size:0.95rem;' +
+                'padding:0.5rem 1.1rem;border-radius:999px;z-index:99999;pointer-events:none;' +
+                'box-shadow:0 10px 30px rgba(0,0,0,0.45);opacity:0;transition:all 0.35s ease;white-space:nowrap;';
+            doc.body.appendChild(el);
+            requestAnimationFrame(function() {{ el.style.opacity = '1'; el.style.transform = 'translate(-50%,-14px)'; }});
+            setTimeout(function() {{ el.style.opacity = '0'; el.style.transform = 'translate(-50%,-34px)'; }}, 1150);
+            setTimeout(function() {{ el.remove(); }}, 1550);
+        }}
+        {sound_js}
+        {toast_js}
+        {confetti_js}
+    }})();
+    </script>
+    """
+
+
+def _fire_pending_effect():
+    effect = st.session_state.pop("quiz_pending_effect", None)
+    if effect:
+        components_html(_effect_script(effect), height=1)
+
+
 def render_quiz():
     if st.session_state.get("quiz_stage") != "active" or not st.session_state.get("quiz"):
         return
@@ -182,9 +364,12 @@ def render_quiz():
     st.session_state.setdefault("quiz_timer_mode", "per_question")
     st.session_state.setdefault("quiz_total_time_limit", 0)
     st.session_state.setdefault("quiz_start_time", None)
+    st.session_state.setdefault("quiz_xp", 0)
+    st.session_state.setdefault("quiz_best_streak", 0)
 
     st.markdown(_QUIZ_CSS, unsafe_allow_html=True)
     st.markdown(_HIDE_AUTOADVANCE_CSS, unsafe_allow_html=True)
+    _fire_pending_effect()
 
     quiz = st.session_state.quiz
     current = st.session_state.current_question
@@ -222,6 +407,16 @@ def render_quiz():
             _exit_quiz()
             st.rerun()
     st.markdown("</div>", unsafe_allow_html=True)
+
+    answered_ct = len(st.session_state.quiz_answers)
+    live_pct = int((answered_ct / total) * 100) if total else 0
+    st.markdown(
+        f'<div class="q-xp-bar-wrap">'
+        f'<div class="q-xp-badge">📝 {answered_ct}/{total} answered</div>'
+        f'<div class="q-xp-track"><div class="q-xp-fill" style="width:{live_pct}%;"></div></div>'
+        f"</div>",
+        unsafe_allow_html=True,
+    )
 
     st.markdown(
         f'<div class="quiz-progress-label">QUESTION {current + 1} OF {total}</div>'
@@ -262,6 +457,7 @@ def render_quiz():
             disabled=st.session_state.quiz_submitted,
         ):
             st.session_state.quiz_answers[current] = letter
+            st.session_state.quiz_pending_effect = {"sound": "pop"}
             st.rerun()
 
     st.markdown("</div>", unsafe_allow_html=True)
@@ -338,8 +534,8 @@ def _render_question_palette():
     with st.sidebar:
         st.divider()
         st.markdown(
-            '<div style=\'font-family:"Source Serif 4",serif;font-size:1.02rem;'
-            'font-weight:600;color:#1B2A4A;margin-bottom:0.2rem;\'>🗂 Question palette</div>',
+            '<div style=\'font-family:"Space Grotesk",sans-serif;font-size:1.02rem;'
+            'font-weight:600;color:#EAF0FF;margin-bottom:0.2rem;\'>🗂 Question palette</div>',
             unsafe_allow_html=True,
         )
         st.markdown(_PALETTE_CSS, unsafe_allow_html=True)
@@ -350,10 +546,10 @@ def _render_question_palette():
 
         st.markdown(
             '<div class="quiz-legend-row">'
-            '<span><span class="quiz-legend-dot" style="background:#2F6F4E;"></span>Answered</span>'
-            '<span><span class="quiz-legend-dot" style="background:#A3402A;"></span>Visited</span>'
-            '<span><span class="quiz-legend-dot" style="background:#7C4FA0;"></span>Marked</span>'
-            '<span><span class="quiz-legend-dot" style="background:#F1EFE7;border:1px solid #E4E0D4;"></span>New</span>'
+            '<span><span class="quiz-legend-dot" style="background:#22D3EE;"></span>Answered</span>'
+            '<span><span class="quiz-legend-dot" style="background:#FF5C7A;"></span>Visited</span>'
+            '<span><span class="quiz-legend-dot" style="background:#7C5CFF;"></span>Marked</span>'
+            '<span><span class="quiz-legend-dot" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.14);"></span>New</span>'
             '</div>',
             unsafe_allow_html=True,
         )
@@ -401,6 +597,9 @@ def _exit_quiz():
     st.session_state.quiz_visited = {}
     st.session_state.quiz_start_time = None
     st.session_state.quiz_total_time_limit = 0
+    st.session_state.quiz_xp = 0
+    st.session_state.quiz_best_streak = 0
+    st.session_state.quiz_pending_effect = None
 
 
 def _render_timer(current, time_limit):
@@ -423,13 +622,13 @@ def _render_timer(current, time_limit):
 
     components_html(
         f"""
-        <div id="qt-wrap" style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">
+        <div id="qt-wrap" style="font-family: 'JetBrains Mono', ui-monospace, monospace;">
           <div style="display:flex; align-items:center; gap:0.6rem;">
-            <div style="flex:1; height:8px; background:#F1EFE7; border-radius:6px; overflow:hidden;">
+            <div style="flex:1; height:8px; background:rgba(255,255,255,0.08); border-radius:6px; overflow:hidden;">
               <div id="qt-bar" style="height:100%; border-radius:6px; width:{pct * 100:.2f}%;
-                   background: linear-gradient(90deg, #2F6F4E, #B8860B); transition: width 0.2s linear, background-color 0.3s ease;"></div>
+                   background: linear-gradient(90deg, #22D3EE, #7C5CFF); transition: width 0.2s linear, background-color 0.3s ease;"></div>
             </div>
-            <div id="qt-label" style="font-size:0.78rem; color:#41507A; min-width:2.4em; text-align:right;">{int(remaining)}s</div>
+            <div id="qt-label" style="font-size:0.78rem; color:#9FB0D9; min-width:2.4em; text-align:right;">{int(remaining)}s</div>
           </div>
         </div>
         <script>
@@ -444,9 +643,9 @@ def _render_timer(current, time_limit):
                 bar.style.width = pct + '%';
                 label.textContent = Math.max(0, Math.ceil(remaining)) + 's';
                 if (remaining <= total * 0.25) {{
-                    bar.style.background = '#A3402A';
+                    bar.style.background = '#FF5C7A';
                 }} else if (remaining <= total * 0.5) {{
-                    bar.style.background = 'linear-gradient(90deg, #B8860B, #A3402A)';
+                    bar.style.background = 'linear-gradient(90deg, #FFD166, #FF5C7A)';
                 }}
             }}
 
@@ -501,14 +700,14 @@ def _render_total_timer(total_seconds):
 
     components_html(
         f"""
-        <div id="qtt-wrap" style="font-family: 'IBM Plex Mono', ui-monospace, monospace;">
+        <div id="qtt-wrap" style="font-family: 'JetBrains Mono', ui-monospace, monospace;">
           <div style="display:flex; align-items:center; gap:0.6rem;">
-            <div style="font-size:0.72rem; color:#41507A; white-space:nowrap;">⏱ TOTAL TIME LEFT</div>
-            <div style="flex:1; height:8px; background:#F1EFE7; border-radius:6px; overflow:hidden;">
+            <div style="font-size:0.72rem; color:#9FB0D9; white-space:nowrap;">⏱ TOTAL TIME LEFT</div>
+            <div style="flex:1; height:8px; background:rgba(255,255,255,0.08); border-radius:6px; overflow:hidden;">
               <div id="qtt-bar" style="height:100%; border-radius:6px; width:{pct * 100:.2f}%;
-                   background: linear-gradient(90deg, #2F6F4E, #B8860B); transition: width 1s linear, background-color 0.3s ease;"></div>
+                   background: linear-gradient(90deg, #22D3EE, #7C5CFF); transition: width 1s linear, background-color 0.3s ease;"></div>
             </div>
-            <div id="qtt-label" style="font-size:0.85rem; font-weight:600; color:#1B2A4A; min-width:3.6em; text-align:right;">{label}</div>
+            <div id="qtt-label" style="font-size:0.85rem; font-weight:600; color:#EAF0FF; min-width:3.6em; text-align:right;">{label}</div>
           </div>
         </div>
         <script>
@@ -530,9 +729,9 @@ def _render_total_timer(total_seconds):
                 bar.style.width = pct + '%';
                 label.textContent = fmt(remaining);
                 if (remaining <= total * 0.1) {{
-                    bar.style.background = '#A3402A';
+                    bar.style.background = '#FF5C7A';
                 }} else if (remaining <= total * 0.25) {{
-                    bar.style.background = 'linear-gradient(90deg, #B8860B, #A3402A)';
+                    bar.style.background = 'linear-gradient(90deg, #FFD166, #FF5C7A)';
                 }}
             }}
 
@@ -565,17 +764,47 @@ def _render_total_timer(total_seconds):
 
 
 def _score_quiz():
+    """Grades the quiz and layers on the gamification pass: XP (with a
+    streak bonus for consecutive correct answers) and the longest streak
+    reached, then queues the results-screen confetti/sound/toast."""
     quiz = st.session_state.quiz
     score = 0
+    streak = 0
+    best_streak = 0
+    xp = 0
 
     for i, q in enumerate(quiz):
         selected_letter = st.session_state.quiz_answers.get(i)
         if selected_letter and selected_letter == q["answer"]:
             score += 1
+            streak += 1
+            best_streak = max(best_streak, streak)
+            xp += 10 + min(streak, 5) * 4
+        else:
+            streak = 0
+
+    total = len(quiz)
+    percentage = (score / total) * 100 if total else 0
 
     st.session_state.quiz_score = score
     st.session_state.quiz_submitted = True
     st.session_state.quiz_question_start_time = None
+    st.session_state.quiz_xp = xp
+    st.session_state.quiz_best_streak = best_streak
+
+    if percentage >= 90:
+        toast = f"🏆 {score}/{total} · Flawless run! +{xp} XP"
+    elif percentage >= 60:
+        toast = f"🎉 {score}/{total} correct · +{xp} XP"
+    else:
+        toast = f"+{xp} XP · keep going"
+
+    st.session_state.quiz_pending_effect = {
+        "sound": "fanfare" if percentage >= 60 else "soft",
+        "confetti": percentage >= 50,
+        "big": percentage >= 90,
+        "toast": toast,
+    }
 
 
 def _render_results():
@@ -583,6 +812,9 @@ def _render_results():
     total = len(quiz)
     score = st.session_state.quiz_score
     percentage = (score / total) * 100
+    xp = st.session_state.get("quiz_xp", 0)
+    best_streak = st.session_state.get("quiz_best_streak", 0)
+    level = _level_for_xp(xp)
 
     st.markdown('<div class="quiz-card">', unsafe_allow_html=True)
 
@@ -597,6 +829,14 @@ def _render_results():
     st.markdown(f"**Score:** {score}/{total} &nbsp;·&nbsp; **{percentage:.1f}%**")
     st.markdown(
         f'<div class="quiz-progress-track"><div class="quiz-progress-fill" style="width:{percentage}%;"></div></div>',
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        f'<div class="q-xp-bar-wrap">'
+        f'<div class="q-xp-badge">⭐ LVL {level} · {xp} XP</div>'
+        f'<div class="q-xp-track"><div class="q-xp-fill" style="width:{min(100, (xp % 100) + (5 if xp else 0))}%;"></div></div>'
+        f'<div style="flex-shrink:0;font-size:0.76rem;color:#FFD166;font-family:\'JetBrains Mono\',monospace;">🔥 best streak {best_streak}</div>'
+        f"</div>",
         unsafe_allow_html=True,
     )
 
@@ -627,6 +867,7 @@ def _render_review():
 
     st.markdown('<div class="section-label">📖 Review</div>', unsafe_allow_html=True)
 
+    streak = 0
     for i, q in enumerate(quiz):
         st.markdown('<div class="quiz-card">', unsafe_allow_html=True)
         st.markdown(f"**{i + 1}. {q['question']}**")
@@ -635,10 +876,14 @@ def _render_review():
         if selected_letter:
             st.markdown(f"Your answer: **{selected_letter}** &nbsp;·&nbsp; Correct: **{q['answer']}**")
             if selected_letter == q["answer"]:
-                st.success("Correct")
+                streak += 1
+                flame = " 🔥" * min(streak, 3) if streak >= 2 else ""
+                st.success(f"Correct{flame}")
             else:
+                streak = 0
                 st.error("Incorrect")
         else:
+            streak = 0
             st.markdown(f"Your answer: **(skipped)** &nbsp;·&nbsp; Correct: **{q['answer']}**")
             st.error("Not answered")
 
