@@ -35,7 +35,7 @@ def inject_css():
     st.markdown(
         f"""
         <style>
-        @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
 
         html, body, [class*="css"] {{
             font-family: {FONT_BODY};
@@ -46,12 +46,117 @@ def inject_css():
             background-color: {COLOR_PAPER};
         }}
 
+        /* ---- Hide default Streamlit chrome that reads as "unfinished
+               app" rather than a finished product (deploy button, footer,
+               the ghost top header bar). The hamburger menu is left
+               alone so Settings/Print/etc. are still reachable. ---- */
+        .stAppDeployButton {{ display: none !important; }}
+        footer {{ visibility: hidden; height: 0; }}
+        header[data-testid="stHeader"] {{
+            background: transparent;
+        }}
+
+        /* ---- Centered, chat-app-style column. No sidebar anymore, so
+               content is capped to a comfortable reading width and
+               centered, the way ChatGPT/Claude lay out the transcript. ---- */
+        .block-container {{
+            max-width: 52rem;
+            margin: 0 auto;
+            padding-top: 1.5rem;
+            padding-bottom: 9rem; /* room for the pinned composer */
+        }}
+
         /* ---- Headings ---- */
         h1, h2, h3 {{
             font-family: {FONT_DISPLAY} !important;
             color: {COLOR_INK} !important;
             font-weight: 600 !important;
             letter-spacing: -0.01em;
+        }}
+
+        /* ---- App title bar (replaces the old sidebar branding) ---- */
+        .app-topbar {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            max-width: 52rem;
+            margin: 0 auto 0.4rem auto;
+            padding: 0.3rem 0.1rem 0.9rem 0.1rem;
+        }}
+        .app-topbar .brand {{
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-family: {FONT_DISPLAY};
+            font-weight: 600;
+            font-size: 1.12rem;
+            color: {COLOR_INK};
+        }}
+        .app-topbar .brand .mark {{
+            width: 30px; height: 30px;
+            display: flex; align-items: center; justify-content: center;
+            background: {COLOR_ACCENT};
+            color: white;
+            border-radius: 8px;
+            font-size: 1rem;
+        }}
+        .app-topbar .status {{
+            font-family: {FONT_MONO};
+            font-size: 0.74rem;
+            color: {COLOR_INK_SOFT};
+        }}
+
+        /* ---- Quick study-tool pills, shown once a document is loaded
+               (this is where the sidebar's "Study tools" buttons live
+               now). ---- */
+        .st-key-toolbar_row .stButton > button,
+        .st-key-toolbar_row .stDownloadButton > button {{
+            border-radius: 999px;
+            border: 1px solid {COLOR_BORDER};
+            background: {COLOR_PAPER_RAISED};
+            color: {COLOR_INK};
+            font-size: 0.83rem;
+            font-weight: 500;
+            padding: 0.35rem 0.9rem;
+            white-space: nowrap;
+        }}
+        .st-key-toolbar_row .stButton > button:hover,
+        .st-key-toolbar_row .stDownloadButton > button:hover {{
+            border-color: {COLOR_ACCENT};
+            color: {COLOR_ACCENT_DARK};
+        }}
+        .st-key-toolbar_row {{
+            margin-bottom: 0.6rem;
+        }}
+
+        /* ==========================================================
+           Chat messages — ChatGPT/Claude style: user turns are a right
+           -aligned soft bubble, assistant turns are plain full-width
+           text (no boxy card), so the transcript reads like a
+           conversation instead of a stack of form panels.
+           ========================================================== */
+        [data-testid="stChatMessage"] {{
+            background: transparent;
+            border: none;
+            padding: 0.35rem 0;
+            gap: 0.65rem;
+        }}
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {{
+            flex-direction: row-reverse;
+        }}
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {{
+            background: {COLOR_PAPER_MUTED};
+            border: 1px solid {COLOR_BORDER};
+            border-radius: 16px;
+            padding: 0.6rem 1rem;
+            max-width: 82%;
+            margin-left: auto;
+        }}
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {{
+            padding: 0.15rem 0;
+        }}
+        [data-testid="stChatMessageAvatarUser"], [data-testid="stChatMessageAvatarAssistant"] {{
+            box-shadow: none;
         }}
 
         /* ---- Hero ---- */
@@ -119,7 +224,9 @@ def inject_css():
             margin: 1.4rem 0 0.9rem 0;
         }}
 
-        /* ---- Sidebar ---- */
+        /* ---- Sidebar ---- (only used now by the in-quiz question
+               palette, a genuinely separate navigational aid, not the
+               old document/tools sidebar — kept styled to match) ---- */
         section[data-testid="stSidebar"] {{
             background-color: {COLOR_PAPER_MUTED};
             border-right: 1px solid {COLOR_BORDER};
@@ -139,6 +246,82 @@ def inject_css():
         section[data-testid="stSidebar"] .stButton button:hover {{
             border-color: {COLOR_ACCENT};
             color: {COLOR_ACCENT_DARK};
+        }}
+
+        /* ==========================================================
+           Pinned composer bar (st.bottom()) — the chat input, plus,
+           directly above it, the "everything I've added" document-chip
+           row and the "+" attachments/tools popover. Main replacement
+           for the old sidebar.
+           ========================================================== */
+        [data-testid="stBottomBlockContainer"] {{
+            background: linear-gradient(180deg, rgba(250,250,247,0) 0%, {COLOR_PAPER} 28%);
+            backdrop-filter: blur(6px);
+            padding-top: 0.6rem;
+        }}
+        [data-testid="stBottomBlockContainer"] > div {{
+            max-width: 52rem;
+            margin: 0 auto;
+        }}
+        [data-testid="stChatInput"] {{
+            border-radius: 22px !important;
+            border: 1px solid {COLOR_BORDER} !important;
+            background: {COLOR_PAPER_RAISED} !important;
+            box-shadow: 0 2px 10px rgba(27, 42, 74, 0.06);
+        }}
+        [data-testid="stChatInput"] textarea {{
+            font-family: {FONT_BODY} !important;
+        }}
+        .st-key-composer_plus [data-testid="stPopoverButton"] {{
+            border-radius: 50% !important;
+            width: 2.15rem;
+            height: 2.15rem;
+            padding: 0 !important;
+            font-size: 1rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid {COLOR_BORDER} !important;
+            background: {COLOR_PAPER_RAISED} !important;
+            color: {COLOR_INK} !important;
+        }}
+        .st-key-composer_plus [data-testid="stPopoverButton"]:hover {{
+            border-color: {COLOR_ACCENT} !important;
+            color: {COLOR_ACCENT_DARK} !important;
+        }}
+        .doc-chip-row {{
+            display: flex;
+            flex-wrap: wrap;
+            align-items: center;
+            gap: 0.4rem;
+            margin: 0 0 0.45rem 0.1rem;
+        }}
+        .doc-chip {{
+            display: inline-flex;
+            align-items: center;
+            gap: 0.35rem;
+            font-family: {FONT_MONO};
+            font-size: 0.74rem;
+            background: {COLOR_PAPER_MUTED};
+            border: 1px solid {COLOR_BORDER};
+            border-radius: 999px;
+            padding: 0.22rem 0.7rem 0.22rem 0.6rem;
+            color: {COLOR_INK_SOFT};
+        }}
+        .doc-chip .dot {{
+            width: 6px; height: 6px; border-radius: 50%;
+            background: {COLOR_ACCENT};
+            flex-shrink: 0;
+        }}
+        .composer-stats {{
+            font-family: {FONT_MONO};
+            font-size: 0.72rem;
+            color: {COLOR_INK_SOFT};
+            margin: 0 0 0.4rem 0.15rem;
+        }}
+        [data-testid="stPopoverBody"] {{
+            border-radius: 12px;
+            border: 1px solid {COLOR_BORDER};
         }}
 
         /* Primary action buttons anywhere */
@@ -215,7 +398,46 @@ def inject_css():
         .stCaption, div[data-testid="stCaptionContainer"] {{
             font-family: {FONT_MONO} !important;
         }}
+
+        /* ==========================================================
+           Responsive — narrow / mobile viewports.
+           ========================================================== */
+        @media (max-width: 640px) {{
+            .block-container {{
+                padding-left: 0.8rem;
+                padding-right: 0.8rem;
+                padding-bottom: 10rem;
+            }}
+            .study-hero {{ padding: 1.4rem 1.2rem; }}
+            .study-hero h1 {{ font-size: 1.5rem !important; }}
+            .study-hero p {{ font-size: 0.92rem; }}
+            .app-topbar .brand {{ font-size: 1rem; }}
+            .app-topbar .status {{ display: none; }}
+            [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {{
+                max-width: 92%;
+            }}
+            .st-key-toolbar_row .stButton > button,
+            .st-key-toolbar_row .stDownloadButton > button {{
+                font-size: 0.78rem;
+                padding: 0.32rem 0.65rem;
+            }}
+        }}
         </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_topbar(status: str = ""):
+    """Slim header that replaces the old sidebar's branding — app name
+    on the left, a one-line status (doc count / language) on the right
+    once something has been loaded."""
+    st.markdown(
+        f"""
+        <div class="app-topbar">
+            <div class="brand"><span class="mark">📚</span> AI Research Assistant</div>
+            <div class="status">{status}</div>
+        </div>
         """,
         unsafe_allow_html=True,
     )
@@ -226,11 +448,11 @@ def render_hero():
         """
         <div class="study-hero">
             <div class="eyebrow">Research · Read · Retain</div>
-            <h1>AI Research Assistant</h1>
-            <p>Upload a PDF or DOCX and work through it the way you would with
-            a research partner — ask questions, pull citations, generate
-            study notes, flashcards, and quizzes, with the option to fall
-            back to the web when your document runs out of answers.</p>
+            <h1>What are we studying today?</h1>
+            <p>Attach a PDF or DOCX with the + button below and ask questions
+            the way you would with a research partner — pull citations,
+            generate study notes, flashcards, and quizzes, with the option to
+            fall back to the web when your document runs out of answers.</p>
         </div>
         """,
         unsafe_allow_html=True,

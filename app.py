@@ -15,8 +15,14 @@ from utils.llm import (
 )
 from utils.web_search import search_web, WebSearchError
 from utils.errors import show_llm_error
-from utils.theme import inject_css, render_hero, render_feature_grid
-from components.sidebar import render_sidebar
+from utils.theme import inject_css, render_hero, render_feature_grid, render_topbar
+from components.chat_toolbar import (
+    sync_documents,
+    add_files,
+    render_document_chips,
+    render_toolbar_actions,
+    render_composer_options,
+)
 from components.chat import render_chat, render_source_cards
 from components.quiz import render_quiz
 from components.quiz_setup import render_quiz_setup
@@ -67,6 +73,7 @@ defaults = {
     "vector_store": None,
     "chunks": None,
     "pdf_loaded": False,
+    "doc_files": [],
     "search_mode": "Hybrid",
     "study_notes": None,
     "document_language": None,
@@ -92,7 +99,7 @@ for key, value in defaults.items():
 # the gap and evicts the heavy state if it's stale, before rendering
 # anything that would depend on it. Chat history is intentionally kept
 # — only the loaded-document state is cleared, since the on-disk cache
-# in components/sidebar.py means a re-upload of the same file is fast.
+# in components/chat_toolbar.py means reprocessing the same file is fast.
 # Override via SESSION_IDLE_TIMEOUT_SECONDS env var.
 SESSION_IDLE_TIMEOUT_SECONDS = int(os.getenv("SESSION_IDLE_TIMEOUT_SECONDS", str(30 * 60)))
 
@@ -108,18 +115,32 @@ if (
         st.session_state.pop(key, None)
     st.session_state.pdf_loaded = False
     st.session_state.document_language = None
-    st.info(
-        "Your document was unloaded after a period of inactivity to free up "
-        "memory. Please re-upload it — if it's the same file, it'll load "
-        "quickly from cache."
-    )
+    # doc_files (the accumulated attachment list) is deliberately kept —
+    # sync_documents() below notices current_pdf_list no longer matches
+    # it and transparently rebuilds from the on-disk cache.
 
 st.session_state.last_active = now
 
 # -----------------------------
-# Sidebar
+# Documents — reprocess the accumulated attachment set if it has
+# changed (new file attached, or one removed) since the last run.
 # -----------------------------
-render_sidebar()
+sync_documents()
+
+# -----------------------------
+# Top bar (replaces the old sidebar branding)
+# -----------------------------
+_status = ""
+if st.session_state.pdf_loaded:
+    _status = (
+        f"{len(st.session_state.get('doc_files', []))} doc(s) · "
+        f"{len(st.session_state.get('pages', []))} pages · "
+        f"{st.session_state.get('document_language', '—')}"
+    )
+render_topbar(_status)
+
+if st.session_state.pdf_loaded:
+    render_toolbar_actions()
 
 # -----------------------------
 # Landing hero (only before a document is loaded, so the chat isn't
@@ -143,8 +164,8 @@ if not takeover:
 
 # -----------------------------
 # Interactive quiz — takes over as its own full-width "slide" once the
-# user clicks Generate quiz in the sidebar, so it isn't competing with
-# the chat transcript underneath it.
+# user clicks Quiz in the toolbar, so it isn't competing with the chat
+# transcript underneath it.
 # -----------------------------
 if st.session_state.quiz_stage == "setup":
     render_quiz_setup()
@@ -166,16 +187,45 @@ if st.session_state.notes_stage == "setup":
     render_notes_setup()
 
 # -----------------------------
-# Chat input
+# Composer — pinned to the bottom of the page. Document chips (and the
+# search-mode/options popover) sit directly above a chat_input whose
+# built-in "+" attach button lets you drop in more PDFs/DOCX at any
+# time, the same way this very chat interface's composer works.
 # -----------------------------
+submission = None
 if not takeover:
-    question = st.chat_input("Ask anything about your document...")
-else:
-    question = None
+    with st.bottom:
+        render_document_chips()
+        col_opts, col_input = st.columns([0.055, 0.945], gap="small")
+        with col_opts:
+            render_composer_options()
+        with col_input:
+            placeholder = (
+                "Message AI Research Assistant..."
+                if st.session_state.pdf_loaded
+                else "Attach a PDF or DOCX with + to get started, or just ask a question..."
+            )
+            submission = st.chat_input(
+                placeholder,
+                accept_file="multiple",
+                file_type=["pdf", "docx"],
+            )
+
+question = None
+attached_files = []
+if submission:
+    question = submission.text.strip() if submission.text else ""
+    attached_files = list(submission.files) if submission.files else []
+
+if attached_files:
+    add_files(attached_files)
+    sync_documents()  # ingest immediately so a same-turn question can use it
+    if not question:
+        st.rerun()  # files-only turn: just ingest and refresh, no chat bubble needed
 
 if question:
     if not st.session_state.pdf_loaded:
-        st.warning("Please upload a PDF or DOCX file first.")
+        st.warning("Attach a PDF or DOCX file first (use the + in the message box).")
     else:
         with st.chat_message("user"):
             st.markdown(question)
