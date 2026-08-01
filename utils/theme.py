@@ -139,6 +139,20 @@ def inject_css():
             letter-spacing: 0.02em;
         }}
 
+        /* ---- Sticky header: topbar + study-tool pills stay put while
+               you scroll through a long summary/notes/chat, instead of
+               having to scroll back up to reach them each time. ---- */
+        .st-key-sticky_header {{
+            position: sticky;
+            top: 0;
+            z-index: 999;
+            background: linear-gradient(180deg, {COLOR_BG} 78%, rgba(5,6,15,0) 100%);
+            backdrop-filter: blur(10px);
+            padding-top: 0.4rem;
+            padding-bottom: 0.5rem;
+            margin-bottom: 0.3rem;
+        }}
+
         /* ---- Study-tool pills (toolbar row once a doc is loaded) ---- */
         .st-key-toolbar_row .stButton > button,
         .st-key-toolbar_row .stDownloadButton > button {{
@@ -360,8 +374,7 @@ def inject_css():
            Pinned composer bar
            ========================================================== */
         [data-testid="stBottomBlockContainer"] {{
-            background: linear-gradient(180deg, rgba(5,6,15,0) 0%, {COLOR_BG} 30%);
-            backdrop-filter: blur(6px);
+            background: {COLOR_BG};
             padding-top: 0.6rem;
         }}
         [data-testid="stBottomBlockContainer"] > div {{
@@ -370,15 +383,34 @@ def inject_css():
         }}
         [data-testid="stChatInput"] {{
             border-radius: 22px !important;
-            border: 1px solid {COLOR_BORDER} !important;
-            background: {COLOR_PAPER_RAISED} !important;
-            backdrop-filter: blur(14px);
+            border: 1px solid rgba(34,211,238,0.3) !important;
+            background: #0B0F22 !important;
             box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+        }}
+        [data-testid="stChatInput"] > div,
+        [data-testid="stChatInput"] textarea {{
+            background: transparent !important;
         }}
         [data-testid="stChatInput"] textarea {{
             font-family: {FONT_BODY} !important;
             color: {COLOR_INK} !important;
         }}
+        [data-testid="stChatInput"] textarea::placeholder {{
+            color: {COLOR_INK_SOFT} !important;
+            opacity: 1 !important;
+        }}
+        [data-testid="stChatInput"] button {{
+            background: transparent !important;
+            color: {COLOR_INK_SOFT} !important;
+        }}
+        [data-testid="stChatInput"] button:hover {{
+            color: {COLOR_ACCENT} !important;
+        }}
+        [data-testid="stChatInputSubmitButton"] {{
+            background: linear-gradient(120deg, {COLOR_ACCENT}, {COLOR_VIOLET}) !important;
+            color: #05060F !important;
+        }}
+        [data-testid="stChatInputSubmitButton"]:hover {{ color: #05060F !important; }}
         .st-key-composer_plus [data-testid="stPopoverButton"] {{
             border-radius: 50% !important;
             width: 2.15rem;

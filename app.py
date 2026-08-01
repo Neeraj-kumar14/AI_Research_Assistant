@@ -138,10 +138,10 @@ if st.session_state.pdf_loaded:
         f"{len(st.session_state.get('pages', []))} pages · "
         f"{st.session_state.get('document_language', '—')}"
     )
-render_topbar(_status)
-
-if st.session_state.pdf_loaded:
-    render_toolbar_actions()
+with st.container(key="sticky_header"):
+    render_topbar(_status)
+    if st.session_state.pdf_loaded:
+        render_toolbar_actions()
 
 # -----------------------------
 # Landing hero (only before a document is loaded, so the chat isn't

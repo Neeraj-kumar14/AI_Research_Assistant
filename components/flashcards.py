@@ -212,13 +212,17 @@ _DECK_CSS = """
     from { opacity: 0; transform: translateY(10px); }
     to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes fcSlideInRight {
-    from { opacity: 0; transform: translateX(46px) rotate(3deg); }
-    to   { opacity: 1; transform: translateX(0) rotate(0deg); }
+@keyframes fcSwapNext {
+    0%   { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); }
+    42%  { opacity: 0; transform: translateX(-36px) scale(0.95) rotate(-2.5deg); }
+    58%  { opacity: 0; transform: translateX(36px) scale(0.95) rotate(2.5deg); }
+    100% { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); }
 }
-@keyframes fcSlideInLeft {
-    from { opacity: 0; transform: translateX(-46px) rotate(-3deg); }
-    to   { opacity: 1; transform: translateX(0) rotate(0deg); }
+@keyframes fcSwapPrev {
+    0%   { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); }
+    42%  { opacity: 0; transform: translateX(36px) scale(0.95) rotate(2.5deg); }
+    58%  { opacity: 0; transform: translateX(-36px) scale(0.95) rotate(-2.5deg); }
+    100% { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); }
 }
 @keyframes fcPopIn {
     0%   { opacity: 0; transform: scale(0.94); }
@@ -294,10 +298,10 @@ _DECK_CSS = """
     margin-bottom: 0.7rem;
 }
 .fc-deck-wrap.fc-anim-next {
-    animation: fcSlideInRight 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: fcSwapNext 0.7s cubic-bezier(0.45, 0, 0.2, 1);
 }
 .fc-deck-wrap.fc-anim-prev {
-    animation: fcSlideInLeft 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+    animation: fcSwapPrev 0.7s cubic-bezier(0.45, 0, 0.2, 1);
 }
 .fc-single-card {
     perspective: 1400px;
@@ -529,6 +533,30 @@ def render_flashcards(cards, key_prefix="fc"):
         """,
         unsafe_allow_html=True,
     )
+
+
+def _inject_card_transition(direction):
+    """CSS animations don't replay just because the DOM content
+    changed — Streamlit reuses the same node across reruns and only
+    patches attributes, so clicking "Next" twice in a row leaves the
+    class as "fc-anim-next" both times and the browser skips the
+    animation the second time. This clears the class, forces a
+    reflow, then re-applies it so the swap-out/swap-in animation
+    fires on every single card change, no matter the direction."""
+    cls = "fc-anim-next" if direction == "next" else "fc-anim-prev"
+    script = f"""
+    <script>
+    (function() {{
+        const doc = window.parent.document;
+        const el = doc.querySelector('.fc-deck-wrap');
+        if (!el) return;
+        el.classList.remove('fc-anim-next', 'fc-anim-prev');
+        void el.offsetWidth;
+        el.classList.add('{cls}');
+    }})();
+    </script>
+    """
+    components_html(script, height=0)
 
 
 def _inject_swipe_handler(card_id):
@@ -784,6 +812,7 @@ def render_flashcard_deck():
     )
 
     _inject_swipe_handler(card_id)
+    _inject_card_transition(st.session_state.flashcard_direction)
 
     if st.button("⭐ Unstar" if is_starred else "⭐ Star this card", key=f"star_{card_index}", use_container_width=True):
         st.session_state.flashcard_starred[card_index] = not is_starred

@@ -354,7 +354,7 @@ def render_toolbar_actions():
         ("❓ Quiz", "tb_quiz"),
     ]
     has_notes = bool(st.session_state.get("study_notes"))
-    n = len(buttons) + (2 if has_notes else 0) + 1  # + downloads + clear
+    n = len(buttons) + (1 if has_notes else 0) + 1  # + pdf download + clear
     toolbar = st.container(key="toolbar_row")
     cols = toolbar.columns(n, gap="small")
 
@@ -397,12 +397,7 @@ def render_toolbar_actions():
                     "📄 Notes.pdf", data=f, file_name="study_notes.pdf",
                     mime="application/pdf", use_container_width=True, key="tb_dl_pdf",
                 )
-        with cols[next_col + 1]:
-            st.download_button(
-                "📥 Notes.md", data=st.session_state.study_notes, file_name="study_notes.md",
-                mime="text/markdown", use_container_width=True, key="tb_dl_md",
-            )
-        next_col += 2
+        next_col += 1
 
     with cols[next_col]:
         if st.button("🗑 Clear chat", key="tb_clear", use_container_width=True):
