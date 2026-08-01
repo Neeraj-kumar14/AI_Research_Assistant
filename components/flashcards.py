@@ -208,30 +208,39 @@ def _fire_pending_effect():
 
 _DECK_CSS = """
 <style>
+/* ── Keyframes ─────────────────────────────────────────── */
 @keyframes fcFadeInUp {
-    from { opacity: 0; transform: translateY(10px); }
+    from { opacity: 0; transform: translateY(12px); }
     to   { opacity: 1; transform: translateY(0); }
 }
-@keyframes fcSwapNext {
-    0%   { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); }
-    42%  { opacity: 0; transform: translateX(-36px) scale(0.95) rotate(-2.5deg); }
-    58%  { opacity: 0; transform: translateX(36px) scale(0.95) rotate(2.5deg); }
-    100% { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); }
-}
-@keyframes fcSwapPrev {
-    0%   { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); }
-    42%  { opacity: 0; transform: translateX(36px) scale(0.95) rotate(2.5deg); }
-    58%  { opacity: 0; transform: translateX(-36px) scale(0.95) rotate(-2.5deg); }
-    100% { opacity: 1; transform: translateX(0) scale(1) rotate(0deg); }
-}
 @keyframes fcPopIn {
-    0%   { opacity: 0; transform: scale(0.94); }
+    0%   { opacity: 0; transform: scale(0.88); }
     100% { opacity: 1; transform: scale(1); }
 }
 @keyframes fcLevelGlow {
     0%, 100% { box-shadow: 0 0 0 0 rgba(255,209,102,0.0); }
-    50%      { box-shadow: 0 0 16px 3px rgba(255,209,102,0.35); }
+    50%       { box-shadow: 0 0 16px 3px rgba(255,209,102,0.35); }
 }
+@keyframes fcShine {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+}
+/* card flip */
+@keyframes fcFlipIn {
+    from { transform: rotateY(-90deg); opacity: 0; }
+    to   { transform: rotateY(0deg);   opacity: 1; }
+}
+/* slider slide */
+@keyframes fcSlideInRight {
+    from { opacity: 0; transform: translateX(60px) scale(0.96); }
+    to   { opacity: 1; transform: translateX(0)    scale(1); }
+}
+@keyframes fcSlideInLeft {
+    from { opacity: 0; transform: translateX(-60px) scale(0.96); }
+    to   { opacity: 1; transform: translateX(0)     scale(1); }
+}
+
+/* ── Top bar & XP ──────────────────────────────────────── */
 .fc-topbar {
     display: flex;
     justify-content: space-between;
@@ -242,7 +251,7 @@ _DECK_CSS = """
     display: flex;
     align-items: center;
     gap: 0.6rem;
-    margin: 0.5rem 0 0.6rem 0;
+    margin: 0.5rem 0 0.55rem 0;
     font-family: 'JetBrains Mono', ui-monospace, monospace;
 }
 .fc-xp-badge {
@@ -269,6 +278,13 @@ _DECK_CSS = """
     border-radius: 6px;
     background: linear-gradient(90deg, #22D3EE, #7C5CFF, #FF3EA5);
     transition: width 0.5s cubic-bezier(0.22,1,0.36,1);
+    position: relative; overflow: hidden;
+}
+.fc-xp-fill::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+    animation: fcShine 1.8s ease-in-out infinite;
 }
 .fc-streak-badge {
     flex-shrink: 0;
@@ -278,58 +294,118 @@ _DECK_CSS = """
 }
 .fc-progress-track {
     width: 100%;
-    height: 8px;
+    height: 6px;
     background: rgba(255,255,255,0.07);
-    border: 1px solid rgba(255,255,255,0.12);
+    border: 1px solid rgba(255,255,255,0.10);
     border-radius: 6px;
     overflow: hidden;
-    margin: 0.35rem 0 0.5rem 0;
+    margin: 0 0 0.4rem 0;
 }
 .fc-progress-fill {
     height: 100%;
     border-radius: 6px;
     background: linear-gradient(90deg, #7C5CFF, #22D3EE);
     transition: width 0.4s ease;
+    position: relative; overflow: hidden;
+}
+.fc-progress-fill::after {
+    content: "";
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+    animation: fcShine 1.8s ease-in-out infinite;
 }
 .fc-stats-row {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.76rem;
+    font-size: 0.74rem;
     color: #9FB0D9;
     margin-bottom: 0.7rem;
+    text-align: center;
 }
-.fc-deck-wrap.fc-anim-next {
-    animation: fcSwapNext 0.7s cubic-bezier(0.45, 0, 0.2, 1);
+
+/* ── TESTIMONIAL SLIDER LAYOUT ─────────────────────────── */
+.fc-slider-scene {
+    position: relative;
+    width: 100%;
+    padding: 0.5rem 0 0.8rem 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    overflow: visible;
+    min-height: 310px;
 }
-.fc-deck-wrap.fc-anim-prev {
-    animation: fcSwapPrev 0.7s cubic-bezier(0.45, 0, 0.2, 1);
+
+/* Side ghost cards */
+.fc-side-card {
+    flex-shrink: 0;
+    width: 22%;
+    height: 240px;
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.09);
+    background: rgba(255,255,255,0.028);
+    backdrop-filter: blur(10px);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    text-align: center;
+    padding: 1rem 0.8rem;
+    gap: 0.5rem;
+    opacity: 0.45;
+    transform: scale(0.88);
+    transition: opacity 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+    overflow: hidden;
+}
+.fc-side-card.fc-side-empty {
+    opacity: 0;
+    pointer-events: none;
+}
+.fc-side-label {
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.62rem;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7C5CFF;
+    margin-bottom: 0.2rem;
+}
+.fc-side-text {
+    font-size: 0.82rem;
+    color: #9FB0D9;
+    line-height: 1.4;
+    max-height: 130px;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 5;
+    -webkit-box-orient: vertical;
+}
+
+/* Centre active card */
+.fc-center-wrap {
+    flex-shrink: 0;
+    width: 52%;
+    perspective: 1400px;
+    position: relative;
+    z-index: 2;
 }
 .fc-single-card {
-    perspective: 1400px;
-    height: 320px;
-    max-width: 560px;
-    margin: 0.4rem auto 0.6rem auto;
+    height: 300px;
     position: relative;
     touch-action: pan-y;
     will-change: transform;
+    cursor: pointer;
 }
-.fc-swipe-hint {
-    text-align: center;
-    font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.02em;
-    color: #9FB0D9;
-    margin: 0.1rem 0 0.5rem 0;
-}
-.fc-swipe-hint b { color: #3DDC97; }
-.fc-swipe-hint b.fc-hint-no { color: #FF5C7A; }
+.fc-single-card.fc-anim-next { animation: fcSlideInRight 0.42s cubic-bezier(0.22,1,0.36,1); }
+.fc-single-card.fc-anim-prev { animation: fcSlideInLeft  0.42s cubic-bezier(0.22,1,0.36,1); }
+
+/* flip mechanism */
 .fc-toggle { display: none; }
 .fc-card-inner {
     position: relative;
     width: 100%;
     height: 100%;
     display: block;
-    cursor: pointer;
-    transition: transform 0.5s;
+    transition: transform 0.55s cubic-bezier(0.22,1,0.36,1);
     transform-style: preserve-3d;
 }
 .fc-toggle:checked ~ .fc-card-inner { transform: rotateY(180deg); }
@@ -337,61 +413,115 @@ _DECK_CSS = """
     position: absolute;
     inset: 0;
     backface-visibility: hidden;
-    border-radius: 18px;
-    border: 1px solid rgba(255,255,255,0.16);
-    padding: 1.6rem 1.8rem;
+    border-radius: 22px;
+    border: 1px solid rgba(255,255,255,0.18);
+    padding: 1.8rem 2rem;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     text-align: center;
-    gap: 0.6rem;
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    box-shadow: 0 18px 40px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.12);
+    gap: 0.65rem;
+    backdrop-filter: blur(22px);
+    -webkit-backdrop-filter: blur(22px);
+    box-shadow:
+        0 24px 55px rgba(0,0,0,0.5),
+        0 0 0 1px rgba(124,92,255,0.12),
+        inset 0 1px 0 rgba(255,255,255,0.14);
 }
 .fc-card-front {
-    background: linear-gradient(155deg, rgba(124,92,255,0.16), rgba(255,255,255,0.04));
+    background: linear-gradient(145deg, rgba(124,92,255,0.22), rgba(11,15,34,0.9));
 }
 .fc-card-back {
-    background: linear-gradient(155deg, rgba(34,211,238,0.16), rgba(255,255,255,0.04));
+    background: linear-gradient(145deg, rgba(34,211,238,0.22), rgba(11,15,34,0.9));
     transform: rotateY(180deg);
+}
+/* Hover lift on centre card */
+.fc-single-card:hover .fc-card-face {
+    box-shadow:
+        0 30px 65px rgba(0,0,0,0.6),
+        0 0 28px rgba(124,92,255,0.22),
+        inset 0 1px 0 rgba(255,255,255,0.16);
 }
 .fc-card-label-q {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #FFD166;
 }
 .fc-card-label-a {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
-    font-size: 0.72rem;
-    letter-spacing: 0.1em;
+    font-size: 0.7rem;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
     color: #22D3EE;
 }
 .fc-card-text {
-    font-size: 1.12rem;
+    font-size: 1.08rem;
     color: #EAF0FF;
-    line-height: 1.5;
-    max-height: 190px;
+    line-height: 1.52;
+    max-height: 175px;
     overflow-y: auto;
 }
-.fc-card-hint { font-size: 0.72rem; color: #9FB0D9; margin-top: auto; }
+.fc-card-hint {
+    font-size: 0.68rem;
+    color: #9FB0D9;
+    margin-top: auto;
+}
 .fc-star-badge {
     position: absolute;
-    top: 0.7rem;
-    right: 0.9rem;
-    font-size: 1.1rem;
+    top: 0.75rem;
+    right: 1rem;
+    font-size: 1.05rem;
     filter: drop-shadow(0 0 6px rgba(255,209,102,0.6));
+    animation: fcPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
-.fc-done-burst {
+
+/* ── Dot indicators ────────────────────────────────────── */
+.fc-dots {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.45rem;
+    margin: 0.5rem 0 0.6rem 0;
+}
+.fc-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.22);
+    transition: all 0.3s ease;
+    cursor: default;
+}
+.fc-dot.fc-dot-active {
+    background: #7C5CFF;
+    box-shadow: 0 0 10px rgba(124,92,255,0.6);
+    transform: scale(1.35);
+}
+.fc-dot.fc-dot-near {
+    background: rgba(124,92,255,0.45);
+    transform: scale(1.1);
+}
+
+/* ── Arrow navigation ──────────────────────────────────── */
+.fc-arrow-row {
+    display: flex;
+    justify-content: center;
+    gap: 0.8rem;
+    margin: 0.2rem 0 0.6rem 0;
+}
+.fc-swipe-hint {
     text-align: center;
-    font-size: 2.3rem;
-    animation: fcPopIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
-    margin-bottom: 0.2rem;
+    font-family: 'JetBrains Mono', ui-monospace, monospace;
+    font-size: 0.7rem;
+    color: #9FB0D9;
+    margin: 0 0 0.5rem 0;
 }
+.fc-swipe-hint b       { color: #3DDC97; }
+.fc-swipe-hint b.fc-hint-no { color: #FF5C7A; }
+
+/* ── Know / Learning buttons ───────────────────────────── */
 .fc-know-btn .stButton > button {
     border: 1px solid #3DDC97 !important;
     color: #3DDC97 !important;
@@ -406,26 +536,26 @@ _DECK_CSS = """
     background: rgba(255,92,122,0.08) !important;
 }
 .fc-learning-btn .stButton > button:hover:not(:disabled) { background: rgba(255,92,122,0.18) !important; }
-.fc-single-card { transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1); }
-.fc-single-card:hover { transform: translateY(-4px) scale(1.01); }
-.fc-single-card:hover .fc-card-face { box-shadow: 0 22px 50px rgba(0,0,0,0.55), 0 0 30px rgba(124,92,255,0.18); }
-.fc-star-badge { animation: fcPopIn 0.35s cubic-bezier(0.34, 1.56, 0.64, 1) both; }
-.fc-progress-fill, .fc-xp-fill { position: relative; overflow: hidden; }
-.fc-progress-fill::after, .fc-xp-fill::after {
-    content: "";
-    position: absolute; inset: 0;
-    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
-    animation: fcShine 1.8s ease-in-out infinite;
+
+/* ── Done burst ────────────────────────────────────────── */
+.fc-done-burst {
+    text-align: center;
+    font-size: 2.3rem;
+    animation: fcPopIn 0.45s cubic-bezier(0.22, 1, 0.36, 1);
+    margin-bottom: 0.2rem;
 }
-@keyframes fcShine {
-    0%   { transform: translateX(-100%); }
-    100% { transform: translateX(100%); }
-}
+
 .fc-topbar, .fc-stats-row, .fc-xp-bar-wrap { animation: fcFadeInUp 0.35s ease both; }
+
+@media (max-width: 640px) {
+    .fc-side-card { display: none; }
+    .fc-center-wrap { width: 90%; }
+}
 @media (prefers-reduced-motion: reduce) {
-    .fc-progress-fill::after, .fc-xp-fill::after { animation: none !important; }
-    .fc-single-card:hover { transform: none; }
+    .fc-xp-fill::after, .fc-progress-fill::after { animation: none !important; }
     .fc-xp-badge { animation: none !important; }
+    .fc-single-card.fc-anim-next,
+    .fc-single-card.fc-anim-prev { animation: none !important; }
 }
 </style>
 """
@@ -559,7 +689,7 @@ def _inject_card_transition(direction):
     components_html(script, height=0)
 
 
-def _inject_swipe_handler(card_id):
+def _inject_swipe_handler(card_id, current=0, total=0):
     """Makes the currently-rendered .fc-single-card draggable with touch/
     mouse, showing live KNOW-IT / LEARNING badges as it's dragged, and
     firing the real 'Know it' / 'Still learning' Streamlit buttons once
@@ -606,6 +736,9 @@ def _inject_swipe_handler(card_id):
                 osc.start(t0); osc.stop(t0 + 0.12);
             }
 
+            const isFirstCard = __IS_FIRST__;
+            const isLastCard = __IS_LAST__;
+
             function attach() {
                 const card = doc.querySelector('.fc-single-card');
                 if (!card || card.dataset.swipeBound === "1") return;
@@ -640,13 +773,27 @@ def _inject_swipe_handler(card_id):
 
                     if (Math.abs(dx) > THRESHOLD) {
                         const dir = dx > 0 ? 1 : -1;
-                        card.style.transition = 'transform 0.35s ease';
-                        card.style.transform = 'translateX(' + (dir * 700) + 'px) rotate(' + (dir * 28) + 'deg)';
-                        const selector = dir > 0 ? '.fc-know-btn button' : '.fc-learning-btn button';
-                        setTimeout(function() {
-                            const btn = doc.querySelector(selector);
-                            if (btn) btn.click();
-                        }, 170);
+                        // Block rightward swipe (know it = advance) on last card,
+                        // and leftward swipe (still learning = advance) on last card — both advance
+                        // Actually both know/learning advance, so block both on last card
+                        const wouldBlock = isLastCard;
+                        if (wouldBlock) {
+                            card.style.transition = 'transform 0.3s ease';
+                            card.style.transform = 'translateX(0) rotate(0)';
+                        } else {
+                            card.style.transition = 'transform 0.35s ease';
+                            card.style.transform = 'translateX(' + (dir * 700) + 'px) rotate(' + (dir * 28) + 'deg)';
+                            const selector = dir > 0 ? '.fc-know-btn button' : '.fc-learning-btn button';
+                            // Guard: prevent double-fire if a click is already in flight
+                            if (!window.__fcSwipePending) {
+                                window.__fcSwipePending = true;
+                                setTimeout(function() {
+                                    const btn = doc.querySelector(selector);
+                                    if (btn && !btn.disabled) btn.click();
+                                    setTimeout(function() { window.__fcSwipePending = false; }, 800);
+                                }, 170);
+                            }
+                        }
                     } else if (moved) {
                         card.style.transition = 'transform 0.3s ease';
                         card.style.transform = 'translateX(0) rotate(0)';
@@ -684,14 +831,40 @@ def _inject_swipe_handler(card_id):
         })();
         </script>
         """
-    components_html(script.replace("__CARD_ID__", json.dumps(card_id)[1:-1]), height=1)
+    injected = (script
+        .replace("__CARD_ID__", json.dumps(card_id)[1:-1])
+        .replace("__IS_FIRST__", "true" if current == 0 else "false")
+        .replace("__IS_LAST__", "true" if current >= total - 1 else "false")
+    )
+    components_html(injected, height=1)
+
+
+def _build_dots_html(current, total, max_dots=7):
+    """Dot indicators — like testimonial slider pagination dots.
+    Shows up to max_dots dots; middle dot is always active card."""
+    if total <= 1:
+        return ""
+    # clamp how many we show
+    show = min(total, max_dots)
+    half = show // 2
+    start = max(0, min(current - half, total - show))
+    dots_html = '<div class="fc-dots">'
+    for i in range(start, start + show):
+        if i == current:
+            cls = "fc-dot fc-dot-active"
+        elif abs(i - current) == 1:
+            cls = "fc-dot fc-dot-near"
+        else:
+            cls = "fc-dot"
+        dots_html += f'<div class="{cls}"></div>'
+    dots_html += "</div>"
+    return dots_html
 
 
 def render_flashcard_deck():
-    """Full-slide, one-card-at-a-time deck with flip + swipe-in animation,
-    know/still-learning tracking, starring, shuffle, and a full XP/streak
-    gamification layer (confetti + synth sound on streak milestones,
-    level-ups, and deck completion)."""
+    """Testimonial-slider style deck: large centre card with left/right
+    ghost previews, dot indicators, arrow nav, flip animation, swipe,
+    know/still-learning tracking, XP/streak gamification."""
     if st.session_state.get("flashcard_stage") != "active" or not st.session_state.get("flashcards"):
         return
 
@@ -707,7 +880,7 @@ def render_flashcard_deck():
     current = st.session_state.flashcard_current
     total = len(order)
 
-    st.markdown('<div class="fc-topbar">', unsafe_allow_html=True)
+    # ── Top bar ──────────────────────────────────────────────
     col_a, col_b = st.columns([5, 1])
     with col_a:
         st.markdown('<div class="section-label">🧠 Flashcards</div>', unsafe_allow_html=True)
@@ -715,15 +888,14 @@ def render_flashcard_deck():
         if st.button("✕ Exit", key="fc_exit", use_container_width=True):
             _exit_deck()
             st.rerun()
-    st.markdown("</div>", unsafe_allow_html=True)
 
+    # ── XP bar ───────────────────────────────────────────────
     xp = st.session_state.flashcard_xp
     level = _level_for_xp(xp)
     level_floor = _xp_for_level(level)
     level_ceiling = _xp_for_level(level + 1)
     xp_pct = int(((xp - level_floor) / max(1, level_ceiling - level_floor)) * 100)
     streak = st.session_state.flashcard_streak
-
     st.markdown(
         f'<div class="fc-xp-bar-wrap">'
         f'<div class="fc-xp-badge">⭐ LVL {level}</div>'
@@ -733,6 +905,7 @@ def render_flashcard_deck():
         unsafe_allow_html=True,
     )
 
+    # ── Progress bar + stats ─────────────────────────────────
     done = current >= total
     progress_pct = int((min(current, total) / total) * 100) if total else 0
     known_count = sum(1 for v in st.session_state.flashcard_known.values() if v)
@@ -752,6 +925,7 @@ def render_flashcard_deck():
         unsafe_allow_html=True,
     )
 
+    # ── Utility buttons ──────────────────────────────────────
     col_view1, col_view2 = st.columns(2)
     with col_view1:
         if st.button("🔀 Shuffle", use_container_width=True, key="fc_shuffle"):
@@ -772,6 +946,7 @@ def render_flashcard_deck():
         _render_deck_complete(total, known_count, learning_count, starred_count)
         return
 
+    # ── Build card data ───────────────────────────────────────
     card_index = order[current]
     card = cards[card_index]
     is_starred = st.session_state.flashcard_starred.get(card_index, False)
@@ -782,54 +957,89 @@ def render_flashcard_deck():
     a = html.escape(card["answer"]).replace("\n", "<br>")
     star_html = '<div class="fc-star-badge">⭐</div>' if is_starred else ""
 
-    st.markdown(
-        '<div class="fc-swipe-hint">👉 Swipe or drag the card: '
-        '<b>right = know it</b> &nbsp;·&nbsp; <b class="fc-hint-no">left = still learning</b></div>',
-        unsafe_allow_html=True,
-    )
+    # ── Left ghost card ───────────────────────────────────────
+    if current > 0:
+        prev_idx = order[current - 1]
+        prev_q = html.escape(cards[prev_idx]["question"]).replace("\n", "<br>")
+        left_html = f"""
+        <div class="fc-side-card">
+            <div class="fc-side-label">Previous</div>
+            <div class="fc-side-text">{prev_q}</div>
+        </div>"""
+    else:
+        left_html = '<div class="fc-side-card fc-side-empty"></div>'
 
+    # ── Right ghost card ──────────────────────────────────────
+    if current < total - 1:
+        next_idx = order[current + 1]
+        next_q = html.escape(cards[next_idx]["question"]).replace("\n", "<br>")
+        right_html = f"""
+        <div class="fc-side-card">
+            <div class="fc-side-label">Next</div>
+            <div class="fc-side-text">{next_q}</div>
+        </div>"""
+    else:
+        right_html = '<div class="fc-side-card fc-side-empty"></div>'
+
+    # ── Slider scene ──────────────────────────────────────────
     st.markdown(
         f"""
-        <div class="fc-deck-wrap {direction_class}">
-          <div class="fc-single-card">
-            <input type="checkbox" id="{card_id}" class="fc-toggle" />
-            <label for="{card_id}" class="fc-card-inner">
+        <div class="fc-slider-scene">
+          {left_html}
+          <div class="fc-center-wrap">
+            <div class="fc-single-card {direction_class}">
+              <input type="checkbox" id="{card_id}" class="fc-toggle" />
+              <label for="{card_id}" class="fc-card-inner">
                 <div class="fc-card-face fc-card-front">{star_html}
-                    <div class="fc-card-label-q">Question</div>
-                    <div class="fc-card-text">{q}</div>
-                    <div class="fc-card-hint">Tap the card to reveal the answer · swipe to answer</div>
+                  <div class="fc-card-label-q">Question {current + 1} / {total}</div>
+                  <div class="fc-card-text">{q}</div>
+                  <div class="fc-card-hint">Tap to flip · swipe right = know it · left = still learning</div>
                 </div>
                 <div class="fc-card-face fc-card-back">{star_html}
-                    <div class="fc-card-label-a">Answer</div>
-                    <div class="fc-card-text">{a}</div>
-                    <div class="fc-card-hint">Tap the card to see the question again · swipe to answer</div>
+                  <div class="fc-card-label-a">Answer</div>
+                  <div class="fc-card-text">{a}</div>
+                  <div class="fc-card-hint">Tap to flip back · swipe to mark</div>
                 </div>
-            </label>
+              </label>
+            </div>
           </div>
+          {right_html}
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    _inject_swipe_handler(card_id)
-    _inject_card_transition(st.session_state.flashcard_direction)
+    # ── Dot indicators ────────────────────────────────────────
+    st.markdown(_build_dots_html(current, total), unsafe_allow_html=True)
 
-    if st.button("⭐ Unstar" if is_starred else "⭐ Star this card", key=f"star_{card_index}", use_container_width=True):
-        st.session_state.flashcard_starred[card_index] = not is_starred
-        st.rerun()
+    _inject_swipe_handler(card_id, current, total)
 
-    col_prev, col_next = st.columns(2)
+    # ── Swipe hint ────────────────────────────────────────────
+    st.markdown(
+        '<div class="fc-swipe-hint">👉 Swipe the card: '
+        '<b>right = know it</b> &nbsp;·&nbsp; <b class="fc-hint-no">left = still learning</b></div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── Star + arrow navigation row ───────────────────────────
+    col_star, col_prev, col_next = st.columns([2, 1, 1])
+    with col_star:
+        if st.button("⭐ Unstar" if is_starred else "⭐ Star", key=f"star_{card_index}", use_container_width=True):
+            st.session_state.flashcard_starred[card_index] = not is_starred
+            st.rerun()
     with col_prev:
-        if st.button("⬅ Previous", use_container_width=True, disabled=current == 0, key="fc_deck_prev"):
+        if st.button("← Prev", use_container_width=True, disabled=current == 0, key="fc_deck_prev"):
             st.session_state.flashcard_current -= 1
             st.session_state.flashcard_direction = "prev"
             st.rerun()
     with col_next:
-        if st.button("Skip ➡", use_container_width=True, key="fc_deck_skip"):
+        is_last_card = current >= total - 1
+        if st.button("Skip →", use_container_width=True, disabled=is_last_card, key="fc_deck_skip"):
             st.session_state.flashcard_current += 1
             st.session_state.flashcard_direction = "next"
             st.rerun()
 
+    # ── Know / Still learning ─────────────────────────────────
     col_learning, col_know = st.columns(2)
     with col_learning:
         st.markdown('<div class="fc-learning-btn">', unsafe_allow_html=True)

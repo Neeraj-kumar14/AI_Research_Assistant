@@ -375,25 +375,44 @@ def inject_css():
            ========================================================== */
         [data-testid="stBottomBlockContainer"] {{
             background: {COLOR_BG};
+            border-top: 1px solid {COLOR_BORDER};
             padding-top: 0.6rem;
+        }}
+        [data-testid="stBottomBlockContainer"]::before {{
+            content: "";
+            display: block;
+            height: 1.5rem;
+            background: linear-gradient(to bottom, transparent, {COLOR_BG});
+            margin-top: -1.5rem;
+            pointer-events: none;
         }}
         [data-testid="stBottomBlockContainer"] > div {{
             max-width: 54rem;
             margin: 0 auto;
         }}
+        [data-testid="stChatInput"],
+        [data-testid="stChatInput"] > div,
+        [data-testid="stChatInput"] > div > div,
+        [data-testid="stChatInput"] > div > div > div {{
+            background: {COLOR_BG_2} !important;
+        }}
         [data-testid="stChatInput"] {{
             border-radius: 22px !important;
-            border: 1px solid rgba(34,211,238,0.3) !important;
-            background: #0B0F22 !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+            border: 1px solid {COLOR_BORDER} !important;
+            background: {COLOR_BG_2} !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+            overflow: hidden !important;
         }}
-        [data-testid="stChatInput"] > div,
-        [data-testid="stChatInput"] textarea {{
-            background: transparent !important;
+        [data-testid="stChatInput"]:focus-within {{
+            border-color: rgba(34,211,238,0.45) !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(34,211,238,0.18) !important;
         }}
-        [data-testid="stChatInput"] textarea {{
+        [data-testid="stChatInput"] textarea,
+        [data-testid="stChatInput"] textarea:focus {{
+            background: {COLOR_BG_2} !important;
             font-family: {FONT_BODY} !important;
             color: {COLOR_INK} !important;
+            caret-color: {COLOR_ACCENT} !important;
         }}
         [data-testid="stChatInput"] textarea::placeholder {{
             color: {COLOR_INK_SOFT} !important;
@@ -411,6 +430,14 @@ def inject_css():
             color: #05060F !important;
         }}
         [data-testid="stChatInputSubmitButton"]:hover {{ color: #05060F !important; }}
+        /* Catch any BaseWeb / Emotion wrappers that inject white bg */
+        [data-testid="stBottomBlockContainer"] [data-baseweb="textarea"],
+        [data-testid="stBottomBlockContainer"] [data-baseweb="base-input"],
+        [data-testid="stBottomBlockContainer"] [data-baseweb="base-input"] > div,
+        [data-testid="stBottomBlockContainer"] textarea {{
+            background: {COLOR_BG_2} !important;
+            color: {COLOR_INK} !important;
+        }}
         .st-key-composer_plus [data-testid="stPopoverButton"] {{
             border-radius: 50% !important;
             width: 2.15rem;
