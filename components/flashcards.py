@@ -585,25 +585,6 @@ def _inject_swipe_handler(card_id):
 
                 let startX = 0, startY = 0, dx = 0, dragging = false, moved = false;
 
-                const likeBadge = doc.createElement('div');
-                likeBadge.textContent = '✅ KNOW IT';
-                likeBadge.style.cssText =
-                    'position:absolute;top:14px;left:14px;padding:6px 12px;' +
-                    'border:3px solid #3DDC97;color:#3DDC97;font-weight:700;' +
-                    'border-radius:8px;transform:rotate(-10deg);opacity:0;' +
-                    'pointer-events:none;font-family:monospace;font-size:0.85rem;' +
-                    'z-index:20;background:rgba(5,6,15,0.85);';
-                const nopeBadge = doc.createElement('div');
-                nopeBadge.textContent = '❌ LEARNING';
-                nopeBadge.style.cssText =
-                    'position:absolute;top:14px;right:14px;padding:6px 12px;' +
-                    'border:3px solid #FF5C7A;color:#FF5C7A;font-weight:700;' +
-                    'border-radius:8px;transform:rotate(10deg);opacity:0;' +
-                    'pointer-events:none;font-family:monospace;font-size:0.85rem;' +
-                    'z-index:20;background:rgba(5,6,15,0.85);';
-                card.appendChild(likeBadge);
-                card.appendChild(nopeBadge);
-
                 const THRESHOLD = 90;
 
                 function onDown(x, y) {
@@ -623,21 +604,11 @@ def _inject_swipe_handler(card_id):
                     moved = true;
                     const rot = dx / 18;
                     card.style.transform = 'translateX(' + dx + 'px) rotate(' + rot + 'deg)';
-                    const t = Math.min(Math.abs(dx) / THRESHOLD, 1);
-                    if (dx > 0) {
-                        likeBadge.style.opacity = t;
-                        nopeBadge.style.opacity = 0;
-                    } else {
-                        nopeBadge.style.opacity = t;
-                        likeBadge.style.opacity = 0;
-                    }
                 }
 
                 function onUp() {
                     if (!dragging) return;
                     dragging = false;
-                    likeBadge.style.opacity = 0;
-                    nopeBadge.style.opacity = 0;
 
                     if (Math.abs(dx) > THRESHOLD) {
                         const dir = dx > 0 ? 1 : -1;

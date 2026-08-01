@@ -18,11 +18,11 @@ _SETUP_CSS = """
     font-size: 0.72rem;
     letter-spacing: 0.14em;
     text-transform: uppercase;
-    color: #2F6F4E;
+    color: #3DDC97;
     margin-bottom: 0.3rem;
 }
 .notes-setup-sub {
-    color: #41507A;
+    color: #9FB0D9;
     font-size: 0.94rem;
     margin-bottom: 1.2rem;
 }
@@ -31,31 +31,31 @@ _SETUP_CSS = """
     font-size: 0.74rem;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: #41507A;
+    color: #9FB0D9;
     margin: 1.1rem 0 0.5rem 0;
 }
 .notes-setup-hint {
-    color: #6B6455;
+    color: #9FB0D9;
     font-size: 0.78rem;
     margin: -0.3rem 0 0.4rem 0;
 }
 .notes-style-row .stButton > button {
     border-radius: 999px !important;
-    border: 1px solid #E4E0D4 !important;
-    background: #FAFAF7 !important;
-    color: #1B2A4A !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+    background: rgba(255,255,255,0.045) !important;
+    color: #EAF0FF !important;
     font-size: 0.86rem !important;
     padding: 0.4rem 0.2rem !important;
     transition: transform 0.12s cubic-bezier(0.34, 1.56, 0.64, 1), border-color 0.15s ease, background-color 0.15s ease;
 }
 .notes-style-row .stButton > button:hover:not(:disabled) {
-    border-color: #2F6F4E !important;
+    border-color: #3DDC97 !important;
     transform: translateY(-1px);
 }
 .notes-style-row .stButton > button[kind="primary"] {
-    background: #2F6F4E !important;
-    border-color: #2F6F4E !important;
-    color: #FFFFFF !important;
+    background: linear-gradient(120deg, #3DDC97, #22D3EE) !important;
+    border-color: #3DDC97 !important;
+    color: #05060F !important;
     font-weight: 600 !important;
     animation: notesPillPop 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
@@ -65,23 +65,26 @@ _SETUP_CSS = """
     100% { transform: scale(1); }
 }
 .notes-section-grid .stCheckbox {
-    background: #FAFAF7;
-    border: 1px solid #E4E0D4;
+    background: rgba(255,255,255,0.045);
+    border: 1px solid rgba(255,255,255,0.14);
     border-radius: 8px;
     padding: 0.35rem 0.6rem;
     margin-bottom: 0.4rem;
     transition: border-color 0.15s ease, background-color 0.15s ease, transform 0.12s ease;
 }
+.notes-section-grid .stCheckbox label p {
+    color: #EAF0FF !important;
+}
 .notes-section-grid .stCheckbox:hover {
-    border-color: #B8860B;
+    border-color: #3DDC97;
     transform: translateX(2px);
 }
 .notes-setup-actions .stButton > button[kind="primary"] {
     animation: notesPulseReady 2.2s ease-in-out infinite;
 }
 @keyframes notesPulseReady {
-    0%, 100% { box-shadow: 0 0 0 0 rgba(47, 111, 78, 0.0); }
-    50% { box-shadow: 0 0 0 6px rgba(47, 111, 78, 0.10); }
+    0%, 100% { box-shadow: 0 0 0 0 rgba(61, 220, 151, 0.0); }
+    50% { box-shadow: 0 0 0 6px rgba(61, 220, 151, 0.16); }
 }
 @media (prefers-reduced-motion: reduce) {
     .notes-setup-actions .stButton > button[kind="primary"] { animation: none !important; }

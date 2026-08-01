@@ -514,6 +514,96 @@ def inject_css():
         hr {{ border-color: {COLOR_BORDER} !important; }}
 
         /* ==========================================================
+           Floating modals (st.dialog) & popovers (st.popover) —
+           Streamlit renders these in a portal with its own light
+           default panel, so without an explicit override they show up
+           as a plain white card even though the rest of the app is
+           dark. This re-skins every such panel to match the glass
+           console look used everywhere else.
+           ========================================================== */
+        div[data-testid="stDialog"] {{
+            background: rgba(2,3,10,0.72) !important;
+            backdrop-filter: blur(4px);
+        }}
+        div[data-testid="stDialog"] > div,
+        div[data-testid="stDialog"] div[role="dialog"] {{
+            background: linear-gradient(160deg, #0D1024 0%, #05060F 100%) !important;
+            border: 1px solid {COLOR_BORDER} !important;
+            border-radius: 20px !important;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08) !important;
+        }}
+        div[data-testid="stDialog"] * {{
+            color: {COLOR_INK};
+        }}
+        div[data-testid="stDialog"] p,
+        div[data-testid="stDialog"] span,
+        div[data-testid="stDialog"] label {{
+            color: {COLOR_INK_SOFT};
+        }}
+        div[data-testid="stDialog"] h1,
+        div[data-testid="stDialog"] h2,
+        div[data-testid="stDialog"] h3,
+        div[data-testid="stDialog"] [data-testid="stMarkdownContainer"] h1 {{
+            color: {COLOR_INK} !important;
+            font-family: {FONT_DISPLAY} !important;
+        }}
+        div[data-testid="stDialog"] [data-testid="baseButton-headerNoPadding"],
+        div[data-testid="stDialog"] button[aria-label="Close"] {{
+            color: {COLOR_INK_SOFT} !important;
+            background: transparent !important;
+        }}
+        div[data-testid="stDialog"] [data-baseweb="input"],
+        div[data-testid="stDialog"] [data-baseweb="textarea"],
+        div[data-testid="stDialog"] input,
+        div[data-testid="stDialog"] textarea {{
+            background: {COLOR_PAPER_RAISED} !important;
+            border-color: {COLOR_BORDER} !important;
+            color: {COLOR_INK} !important;
+        }}
+        div[data-testid="stDialog"] hr {{ border-color: {COLOR_BORDER} !important; }}
+
+        /* st.popover panels ("Manage documents", the ⚙ search-mode
+           options) render via BaseWeb into the same body-level portal
+           as the dialog, so they need the same treatment. */
+        div[data-baseweb="popover"] {{
+            background: transparent !important;
+        }}
+        div[data-baseweb="popover"] > div,
+        div[data-testid="stPopoverBody"] {{
+            background: linear-gradient(160deg, #0D1024 0%, #05060F 100%) !important;
+            border: 1px solid {COLOR_BORDER} !important;
+            border-radius: 14px !important;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5) !important;
+        }}
+        div[data-baseweb="popover"] * {{ color: {COLOR_INK}; }}
+        div[data-baseweb="popover"] .stCaption,
+        div[data-baseweb="popover"] p {{ color: {COLOR_INK_SOFT} !important; }}
+        div[data-baseweb="popover"] [data-baseweb="radio"] label {{ color: {COLOR_INK} !important; }}
+
+        /* ---- Instant press feedback — every button reacts the moment
+               it's clicked instead of only updating once the rerun
+               finishes, so a slow LLM call doesn't read as "did nothing". ---- */
+        .stButton > button, .stDownloadButton > button {{
+            transition: transform 0.08s ease, filter 0.12s ease, box-shadow 0.12s ease, border-color 0.15s ease;
+        }}
+        .stButton > button:active, .stDownloadButton > button:active {{
+            transform: scale(0.965);
+            filter: brightness(0.94);
+        }}
+
+        /* ---- Study-tool pill row: allow wrapping instead of
+               squeezing every pill into one fixed-width line ---- */
+        .st-key-toolbar_row [data-testid="stHorizontalBlock"] {{
+            flex-wrap: wrap !important;
+            row-gap: 0.5rem;
+        }}
+        .st-key-toolbar_row [data-testid="stHorizontalBlock"] > div {{
+            flex: 1 1 auto !important;
+            min-width: 8.2rem;
+            width: auto !important;
+        }}
+
+        /* ==========================================================
            Responsive
            ========================================================== */
         @media (max-width: 640px) {{
@@ -539,6 +629,59 @@ def inject_css():
         </style>
         """,
         unsafe_allow_html=True,
+    )
+
+
+def inject_scroll_preserver():
+    """Every button click triggers a full Streamlit rerun, which by
+    default snaps the page back to the top — jarring once someone has
+    scrolled down into a long chat/notes/quiz. This remembers the
+    scroll position (sessionStorage, so it survives the rerun) and
+    restores it right after the new page paints.
+
+    Runs inside a components.html iframe (not a plain st.markdown
+    <script>, which browsers won't execute) and reaches back out to
+    the real page via window.parent, same pattern already used by the
+    flashcard swipe handler."""
+    from streamlit.components.v1 import html as components_html
+
+    components_html(
+        """
+        <script>
+        (function() {
+            const doc = window.parent.document;
+            const KEY = "ara_scroll_y";
+
+            function getScroller() {
+                return doc.querySelector('section[data-testid="stMain"]') || doc.scrollingElement;
+            }
+
+            function save() {
+                const el = getScroller();
+                if (el) sessionStorage.setItem(KEY, String(el.scrollTop));
+            }
+
+            function restore() {
+                const el = getScroller();
+                const y = sessionStorage.getItem(KEY);
+                if (el && y !== null) el.scrollTop = parseInt(y, 10);
+            }
+
+            const el = getScroller();
+            if (el && !el.dataset.scrollBound) {
+                el.dataset.scrollBound = "1";
+                el.addEventListener("scroll", function() {
+                    clearTimeout(window.__araScrollTimer);
+                    window.__araScrollTimer = setTimeout(save, 100);
+                });
+            }
+            restore();
+            setTimeout(restore, 80);
+            setTimeout(restore, 250);
+        })();
+        </script>
+        """,
+        height=0,
     )
 
 

@@ -15,7 +15,7 @@ from utils.llm import (
 )
 from utils.web_search import search_web, WebSearchError
 from utils.errors import show_llm_error
-from utils.theme import inject_css, render_hero, render_feature_grid, render_topbar
+from utils.theme import inject_css, render_hero, render_topbar, inject_scroll_preserver
 from components.chat_toolbar import (
     sync_documents,
     add_files,
@@ -37,6 +37,7 @@ st.set_page_config(
 )
 
 inject_css()
+inject_scroll_preserver()
 
 # -----------------------------
 # Session State
@@ -154,8 +155,6 @@ takeover = quiz_takeover or flashcard_takeover or notes_takeover
 if not takeover:
     if not st.session_state.pdf_loaded and not st.session_state.messages:
         render_hero()
-        render_feature_grid()
-        st.markdown("")
 
     # -----------------------------
     # Chat history
