@@ -335,14 +335,15 @@ _DECK_CSS = """
     min-height: 310px;
 }
 
-/* Side ghost cards — also double as previews that sit right above the
-   real prev/next nav button, so the two read as one clickable unit. */
+/* Side ghost cards — tilted in 3D so they read as a stack fanning away
+   from the active card, like a physical card deck. A small floating
+   circular arrow (see .fc-side-nav-btn below) sits on top of each one
+   as the actual prev/next control — no more full-width text button. */
 .fc-side-card {
     width: 100%;
     height: 240px;
-    border-radius: 18px 18px 0 0;
+    border-radius: 18px;
     border: 1px solid rgba(255,255,255,0.09);
-    border-bottom: none;
     background: rgba(255,255,255,0.028);
     backdrop-filter: blur(10px);
     display: flex;
@@ -353,31 +354,78 @@ _DECK_CSS = """
     padding: 1rem 0.8rem;
     gap: 0.5rem;
     opacity: 0.55;
-    transition: opacity 0.3s ease, transform 0.3s ease;
+    transition: opacity 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
     overflow: hidden;
     box-sizing: border-box;
+}
+.fc-side-card.fc-side-left {
+    transform: perspective(900px) rotateY(-22deg) scale(0.93);
+    transform-origin: right center;
+    box-shadow: 14px 14px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.fc-side-card.fc-side-right {
+    transform: perspective(900px) rotateY(22deg) scale(0.93);
+    transform-origin: left center;
+    box-shadow: -14px 14px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
+}
+.fc-side-card.fc-side-left:hover {
+    opacity: 0.85;
+    transform: perspective(900px) rotateY(-14deg) scale(0.95);
+}
+.fc-side-card.fc-side-right:hover {
+    opacity: 0.85;
+    transform: perspective(900px) rotateY(14deg) scale(0.95);
 }
 .fc-side-card.fc-side-empty {
     opacity: 0;
     pointer-events: none;
     border: none;
+    box-shadow: none;
     height: 240px;
 }
-/* Nav button fused to the bottom of its preview card. The [kind]
-   attribute selector isn't for styling — it raises specificity above
-   theme.py's global `.stButton > button[kind="secondary"]` rule so our
-   colors reliably win (same fix as the quiz question palette). */
+/* Floating circular 3D arrow — overlaps the bottom edge of its tilted
+   preview card via the negative margin, so it reads as one clickable
+   unit without a wordy "Previous card"/"Next card" button underneath.
+   The [kind] attribute selector isn't for styling — it raises
+   specificity above theme.py's global `.stButton > button[kind="secondary"]`
+   rule so our colors reliably win (same fix as the quiz question palette). */
+.fc-side-nav-btn {
+    display: flex;
+    justify-content: center;
+    margin-top: -26px;
+    position: relative;
+    z-index: 5;
+}
+.fc-side-nav-btn .stButton { width: auto !important; }
 .fc-side-nav-btn .stButton > button[kind] {
-    border-radius: 0 0 18px 18px !important;
-    border: 1px solid rgba(255,255,255,0.09) !important;
-    border-top: none !important;
-    background: rgba(255,255,255,0.045) !important;
-    color: #9FB0D9 !important;
+    width: 52px !important;
+    height: 52px !important;
+    min-width: 52px !important;
+    padding: 0 !important;
+    border-radius: 50% !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
+    background: linear-gradient(145deg, rgba(124,92,255,0.4), rgba(11,15,34,0.96)) !important;
+    color: #E8ECFA !important;
+    font-size: 1.25rem !important;
+    line-height: 1 !important;
+    font-weight: 700 !important;
+    box-shadow:
+        0 10px 22px rgba(0,0,0,0.5),
+        0 0 0 1px rgba(124,92,255,0.2),
+        inset 0 1px 0 rgba(255,255,255,0.28) !important;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease !important;
 }
 .fc-side-nav-btn .stButton > button[kind]:hover {
-    background: rgba(34,211,238,0.14) !important;
+    transform: translateY(-3px) scale(1.1) !important;
+    background: linear-gradient(145deg, rgba(34,211,238,0.45), rgba(11,15,34,0.96)) !important;
     color: #22D3EE !important;
-    border-color: rgba(34,211,238,0.35) !important;
+    box-shadow:
+        0 14px 28px rgba(0,0,0,0.55),
+        0 0 22px rgba(34,211,238,0.4),
+        inset 0 1px 0 rgba(255,255,255,0.32) !important;
+}
+.fc-side-nav-btn .stButton > button[kind]:active {
+    transform: translateY(0) scale(0.95) !important;
 }
 .fc-side-label {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -568,9 +616,14 @@ _DECK_CSS = """
 @media (max-width: 640px) {
     .fc-side-card { display: none; }
     .fc-center-wrap { width: 100%; }
+    .fc-side-nav-btn {
+        margin-top: 0.6rem;
+    }
     .fc-side-nav-btn .stButton > button[kind] {
-        border-radius: 12px !important;
-        border-top: 1px solid rgba(255,255,255,0.09) !important;
+        width: 44px !important;
+        height: 44px !important;
+        min-width: 44px !important;
+        font-size: 1.1rem !important;
     }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -1008,12 +1061,12 @@ def render_flashcard_deck():
     next_q = html.escape(cards[order[current + 1]]["question"]).replace("\n", "<br>") if has_next else ""
 
     left_html = (
-        f'<div class="fc-side-card"><div class="fc-side-label">◀ Previous</div>'
+        f'<div class="fc-side-card fc-side-left"><div class="fc-side-label">◀ Previous</div>'
         f'<div class="fc-side-text">{prev_q}</div></div>'
         if has_prev else '<div class="fc-side-card fc-side-empty"></div>'
     )
     right_html = (
-        f'<div class="fc-side-card"><div class="fc-side-label">Next ▶</div>'
+        f'<div class="fc-side-card fc-side-right"><div class="fc-side-label">Next ▶</div>'
         f'<div class="fc-side-text">{next_q}</div></div>'
         if has_next else '<div class="fc-side-card fc-side-empty"></div>'
     )
@@ -1024,7 +1077,7 @@ def render_flashcard_deck():
         st.markdown(left_html, unsafe_allow_html=True)
         if has_prev:
             st.markdown('<div class="fc-side-nav-btn">', unsafe_allow_html=True)
-            if st.button("◀ Previous card", key="fc_nav_prev", use_container_width=True):
+            if st.button("‹", key="fc_nav_prev", use_container_width=True):
                 st.session_state.flashcard_current -= 1
                 st.session_state.flashcard_direction = "prev"
                 st.rerun()
@@ -1058,7 +1111,7 @@ def render_flashcard_deck():
         st.markdown(right_html, unsafe_allow_html=True)
         if has_next:
             st.markdown('<div class="fc-side-nav-btn">', unsafe_allow_html=True)
-            if st.button("Next card ▶", key="fc_nav_next", use_container_width=True):
+            if st.button("›", key="fc_nav_next", use_container_width=True):
                 st.session_state.flashcard_current += 1
                 st.session_state.flashcard_direction = "next"
                 st.rerun()
