@@ -48,7 +48,8 @@ def _get_client():
         # in utils/ocr.py — most requests never touch OCR at all, so
         # this shouldn't cost import time/memory for every process
         # start.
-        from mistralai import Mistral
+        # from mistralai import Mistral
+        from mistralai.client import Mistral
         _client = Mistral(api_key=MISTRAL_API_KEY)
     return _client
 
