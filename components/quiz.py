@@ -157,7 +157,7 @@ div[class*="st-key-auto_submit_quiz"] { display: none !important; }
 # "answeredmarked", so codes like that are avoided).
 _PALETTE_CSS = """
 <style>
-div[class*="st-key-palette_"] button {
+div[class*="st-key-palette_"] .stButton > button {
     border-radius: 8px !important;
     padding: 0.3rem 0 !important;
     font-family: 'JetBrains Mono', ui-monospace, monospace !important;
@@ -168,33 +168,41 @@ div[class*="st-key-palette_"] button {
     transition: transform 0.14s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.15s ease, background-color 0.2s ease !important;
     animation: qPopIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
-div[class*="st-key-palette_"] button:hover:not(:disabled) {
+div[class*="st-key-palette_"] .stButton > button:hover:not(:disabled) {
     transform: translateY(-2px) scale(1.05) !important;
     box-shadow: 0 4px 14px rgba(0,0,0,0.4) !important;
 }
-div[class*="st-key-palette_pnv_"] button {
-    background: rgba(255,255,255,0.06) !important;
+/* NOTE: these status rules must out-specificity theme.py's global
+   `.stButton > button[kind="secondary"]` rule (specificity 0,2,1) or the
+   generic gray secondary-button style silently wins and every status
+   (other than the current, primary-styled question) renders identically.
+   Including ".stButton" here raises us to 0,2,2 so our color always wins. */
+div[class*="st-key-palette_pnv_"] .stButton > button {
+    background: rgba(255,255,255,0.05) !important;
     color: #9FB0D9 !important;
     border-color: rgba(255,255,255,0.14) !important;
 }
-div[class*="st-key-palette_pvu_"] button {
-    background: rgba(255,92,122,0.16) !important;
-    color: #FF5C7A !important;
-    border-color: rgba(255,92,122,0.4) !important;
+div[class*="st-key-palette_pvu_"] .stButton > button {
+    background: rgba(255,92,122,0.38) !important;
+    color: #FFE1E7 !important;
+    border-color: #FF5C7A !important;
 }
-div[class*="st-key-palette_pans_"] button {
+div[class*="st-key-palette_pans_"] .stButton > button {
     background: linear-gradient(120deg, #22D3EE, #3DDC97) !important;
     color: #05060F !important;
+    border-color: transparent !important;
 }
-div[class*="st-key-palette_pflg_"] button {
+div[class*="st-key-palette_pflg_"] .stButton > button {
     background: #7C5CFF !important;
     color: #FFFFFF !important;
+    border-color: transparent !important;
 }
-div[class*="st-key-palette_pafl_"] button {
+div[class*="st-key-palette_pafl_"] .stButton > button {
     background: linear-gradient(135deg, #22D3EE 50%, #7C5CFF 50%) !important;
     color: #FFFFFF !important;
+    border-color: transparent !important;
 }
-div[class*="st-key-palette_"] button[kind="primary"] {
+div[class*="st-key-palette_"] .stButton > button[kind="primary"] {
     outline: 2px solid #EAF0FF !important;
     outline-offset: 1px !important;
     animation: qPopIn 0.25s cubic-bezier(0.22, 1, 0.36, 1) both, palettePulse 2s ease-in-out infinite !important;

@@ -335,13 +335,14 @@ _DECK_CSS = """
     min-height: 310px;
 }
 
-/* Side ghost cards */
+/* Side ghost cards — also double as previews that sit right above the
+   real prev/next nav button, so the two read as one clickable unit. */
 .fc-side-card {
-    flex-shrink: 0;
-    width: 22%;
+    width: 100%;
     height: 240px;
-    border-radius: 18px;
+    border-radius: 18px 18px 0 0;
     border: 1px solid rgba(255,255,255,0.09);
+    border-bottom: none;
     background: rgba(255,255,255,0.028);
     backdrop-filter: blur(10px);
     display: flex;
@@ -351,15 +352,32 @@ _DECK_CSS = """
     text-align: center;
     padding: 1rem 0.8rem;
     gap: 0.5rem;
-    opacity: 0.45;
-    transform: scale(0.88);
+    opacity: 0.55;
     transition: opacity 0.3s ease, transform 0.3s ease;
-    pointer-events: none;
     overflow: hidden;
+    box-sizing: border-box;
 }
 .fc-side-card.fc-side-empty {
     opacity: 0;
     pointer-events: none;
+    border: none;
+    height: 240px;
+}
+/* Nav button fused to the bottom of its preview card. The [kind]
+   attribute selector isn't for styling — it raises specificity above
+   theme.py's global `.stButton > button[kind="secondary"]` rule so our
+   colors reliably win (same fix as the quiz question palette). */
+.fc-side-nav-btn .stButton > button[kind] {
+    border-radius: 0 0 18px 18px !important;
+    border: 1px solid rgba(255,255,255,0.09) !important;
+    border-top: none !important;
+    background: rgba(255,255,255,0.045) !important;
+    color: #9FB0D9 !important;
+}
+.fc-side-nav-btn .stButton > button[kind]:hover {
+    background: rgba(34,211,238,0.14) !important;
+    color: #22D3EE !important;
+    border-color: rgba(34,211,238,0.35) !important;
 }
 .fc-side-label {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -382,11 +400,11 @@ _DECK_CSS = """
 
 /* Centre active card */
 .fc-center-wrap {
-    flex-shrink: 0;
-    width: 52%;
+    width: 100%;
     perspective: 1400px;
     position: relative;
     z-index: 2;
+    margin: 0 auto;
 }
 .fc-single-card {
     height: 300px;
@@ -549,7 +567,11 @@ _DECK_CSS = """
 
 @media (max-width: 640px) {
     .fc-side-card { display: none; }
-    .fc-center-wrap { width: 90%; }
+    .fc-center-wrap { width: 100%; }
+    .fc-side-nav-btn .stButton > button[kind] {
+        border-radius: 12px !important;
+        border-top: 1px solid rgba(255,255,255,0.09) !important;
+    }
 }
 @media (prefers-reduced-motion: reduce) {
     .fc-xp-fill::after, .fc-progress-fill::after { animation: none !important; }
@@ -739,92 +761,112 @@ def _inject_swipe_handler(card_id, current=0, total=0):
             const isFirstCard = __IS_FIRST__;
             const isLastCard = __IS_LAST__;
 
+            const THRESHOLD = 90;
+            const w = window.parent;
+
+            // Shared drag state, kept on `w` so it survives this iframe being
+            // torn down and a new one taking its place on the next rerun.
+            if (!w.__fcSwipeState) {
+                w.__fcSwipeState = { startX: 0, startY: 0, dx: 0, dragging: false, moved: false, card: null };
+            }
+            const st_ = w.__fcSwipeState;
+
+            function liveCard() {
+                return doc.querySelector('.fc-single-card');
+            }
+
+            function onDown(card, x, y) {
+                st_.dragging = true;
+                st_.moved = false;
+                st_.startX = x;
+                st_.startY = y;
+                st_.dx = 0;
+                st_.card = card;
+                card.style.transition = 'none';
+            }
+
+            function onMove(x, y) {
+                if (!st_.dragging || !st_.card) return;
+                const card = st_.card;
+                st_.dx = x - st_.startX;
+                const dy = y - st_.startY;
+                if (!st_.moved && Math.abs(st_.dx) < 6 && Math.abs(dy) < 6) return;
+                st_.moved = true;
+                const rot = st_.dx / 18;
+                card.style.transform = 'translateX(' + st_.dx + 'px) rotate(' + rot + 'deg)';
+            }
+
+            function onUp() {
+                if (!st_.dragging || !st_.card) return;
+                st_.dragging = false;
+                const card = st_.card;
+                // The card that started the drag might not be the live one
+                // anymore (a rerun could have swapped it in the meantime) —
+                // only act if it's still the one on screen.
+                const stillLive = card.isConnected && card === liveCard();
+
+                if (stillLive && Math.abs(st_.dx) > THRESHOLD) {
+                    const dir = st_.dx > 0 ? 1 : -1;
+                    const wouldBlock = isLastCard;
+                    if (wouldBlock) {
+                        card.style.transition = 'transform 0.3s ease';
+                        card.style.transform = 'translateX(0) rotate(0)';
+                    } else {
+                        card.style.transition = 'transform 0.35s ease';
+                        card.style.transform = 'translateX(' + (dir * 700) + 'px) rotate(' + (dir * 28) + 'deg)';
+                        const selector = dir > 0 ? '.fc-know-btn button' : '.fc-learning-btn button';
+                        if (!w.__fcSwipePending) {
+                            w.__fcSwipePending = true;
+                            setTimeout(function() {
+                                const btn = doc.querySelector(selector);
+                                if (btn && !btn.disabled) btn.click();
+                                setTimeout(function() { w.__fcSwipePending = false; }, 800);
+                            }, 170);
+                        }
+                    }
+                } else if (st_.moved && stillLive) {
+                    card.style.transition = 'transform 0.3s ease';
+                    card.style.transform = 'translateX(0) rotate(0)';
+                }
+                st_.dx = 0;
+                st_.card = null;
+            }
+
             function attach() {
-                const card = doc.querySelector('.fc-single-card');
+                const card = liveCard();
                 if (!card || card.dataset.swipeBound === "1") return;
                 card.dataset.swipeBound = "1";
 
-                let startX = 0, startY = 0, dx = 0, dragging = false, moved = false;
-
-                const THRESHOLD = 90;
-
-                function onDown(x, y) {
-                    dragging = true;
-                    moved = false;
-                    startX = x;
-                    startY = y;
-                    dx = 0;
-                    card.style.transition = 'none';
-                }
-
-                function onMove(x, y) {
-                    if (!dragging) return;
-                    dx = x - startX;
-                    const dy = y - startY;
-                    if (!moved && Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-                    moved = true;
-                    const rot = dx / 18;
-                    card.style.transform = 'translateX(' + dx + 'px) rotate(' + rot + 'deg)';
-                }
-
-                function onUp() {
-                    if (!dragging) return;
-                    dragging = false;
-
-                    if (Math.abs(dx) > THRESHOLD) {
-                        const dir = dx > 0 ? 1 : -1;
-                        // Block rightward swipe (know it = advance) on last card,
-                        // and leftward swipe (still learning = advance) on last card — both advance
-                        // Actually both know/learning advance, so block both on last card
-                        const wouldBlock = isLastCard;
-                        if (wouldBlock) {
-                            card.style.transition = 'transform 0.3s ease';
-                            card.style.transform = 'translateX(0) rotate(0)';
-                        } else {
-                            card.style.transition = 'transform 0.35s ease';
-                            card.style.transform = 'translateX(' + (dir * 700) + 'px) rotate(' + (dir * 28) + 'deg)';
-                            const selector = dir > 0 ? '.fc-know-btn button' : '.fc-learning-btn button';
-                            // Guard: prevent double-fire if a click is already in flight
-                            if (!window.__fcSwipePending) {
-                                window.__fcSwipePending = true;
-                                setTimeout(function() {
-                                    const btn = doc.querySelector(selector);
-                                    if (btn && !btn.disabled) btn.click();
-                                    setTimeout(function() { window.__fcSwipePending = false; }, 800);
-                                }, 170);
-                            }
-                        }
-                    } else if (moved) {
-                        card.style.transition = 'transform 0.3s ease';
-                        card.style.transform = 'translateX(0) rotate(0)';
-                    }
-                    dx = 0;
-                }
-
                 card.addEventListener('touchstart', function(e) {
-                    onDown(e.touches[0].clientX, e.touches[0].clientY);
+                    onDown(card, e.touches[0].clientX, e.touches[0].clientY);
                 }, {passive: true});
                 card.addEventListener('touchmove', function(e) {
                     onMove(e.touches[0].clientX, e.touches[0].clientY);
                 }, {passive: true});
                 card.addEventListener('touchend', onUp);
-
                 card.addEventListener('mousedown', function(e) {
-                    onDown(e.clientX, e.clientY);
+                    onDown(card, e.clientX, e.clientY);
                 });
-                doc.addEventListener('mousemove', function(e) {
-                    onMove(e.clientX, e.clientY);
-                });
-                doc.addEventListener('mouseup', onUp);
 
                 // Don't let a drag also flip the card via its flip-toggle label.
                 const label = card.querySelector('label.fc-card-inner');
                 if (label) {
                     label.addEventListener('click', function(e) {
-                        if (moved) { e.preventDefault(); } else { pop(); }
+                        if (st_.moved) { e.preventDefault(); } else { pop(); }
                     });
                 }
             }
+
+            // Document-level move/up listeners only need to exist ONCE for
+            // the whole session — `doc` is the real parent page, which
+            // outlives this iframe, so re-adding them on every render would
+            // silently pile up duplicate listeners over time.
+            if (!w.__fcDocListenersBound) {
+                w.__fcDocListenersBound = true;
+                doc.addEventListener('mousemove', function(e) { onMove(e.clientX, e.clientY); });
+                doc.addEventListener('mouseup', onUp);
+            }
+
             attach();
             setTimeout(attach, 150);
             setTimeout(attach, 500);
@@ -957,57 +999,70 @@ def render_flashcard_deck():
     a = html.escape(card["answer"]).replace("\n", "<br>")
     star_html = '<div class="fc-star-badge">⭐</div>' if is_starred else ""
 
-    # ── Left ghost card ───────────────────────────────────────
-    if current > 0:
-        prev_idx = order[current - 1]
-        prev_q = html.escape(cards[prev_idx]["question"]).replace("\n", "<br>")
-        left_html = f"""
-        <div class="fc-side-card">
-            <div class="fc-side-label">Previous</div>
-            <div class="fc-side-text">{prev_q}</div>
-        </div>"""
-    else:
-        left_html = '<div class="fc-side-card fc-side-empty"></div>'
+    # ── Left / right ghost previews (decorative — the real, clickable
+    # nav lives in the button placed right underneath each one below,
+    # styled via CSS to look fused to its preview card) ────────────
+    has_prev = current > 0
+    has_next = current < total - 1
+    prev_q = html.escape(cards[order[current - 1]]["question"]).replace("\n", "<br>") if has_prev else ""
+    next_q = html.escape(cards[order[current + 1]]["question"]).replace("\n", "<br>") if has_next else ""
 
-    # ── Right ghost card ──────────────────────────────────────
-    if current < total - 1:
-        next_idx = order[current + 1]
-        next_q = html.escape(cards[next_idx]["question"]).replace("\n", "<br>")
-        right_html = f"""
-        <div class="fc-side-card">
-            <div class="fc-side-label">Next</div>
-            <div class="fc-side-text">{next_q}</div>
-        </div>"""
-    else:
-        right_html = '<div class="fc-side-card fc-side-empty"></div>'
-
-    # ── Slider scene ──────────────────────────────────────────
-    st.markdown(
-        f"""
-        <div class="fc-slider-scene">
-          {left_html}
-          <div class="fc-center-wrap">
-            <div class="fc-single-card {direction_class}">
-              <input type="checkbox" id="{card_id}" class="fc-toggle" />
-              <label for="{card_id}" class="fc-card-inner">
-                <div class="fc-card-face fc-card-front">{star_html}
-                  <div class="fc-card-label-q">Question {current + 1} / {total}</div>
-                  <div class="fc-card-text">{q}</div>
-                  <div class="fc-card-hint">Tap to flip · swipe right = know it · left = still learning</div>
-                </div>
-                <div class="fc-card-face fc-card-back">{star_html}
-                  <div class="fc-card-label-a">Answer</div>
-                  <div class="fc-card-text">{a}</div>
-                  <div class="fc-card-hint">Tap to flip back · swipe to mark</div>
-                </div>
-              </label>
-            </div>
-          </div>
-          {right_html}
-        </div>
-        """,
-        unsafe_allow_html=True,
+    left_html = (
+        f'<div class="fc-side-card"><div class="fc-side-label">◀ Previous</div>'
+        f'<div class="fc-side-text">{prev_q}</div></div>'
+        if has_prev else '<div class="fc-side-card fc-side-empty"></div>'
     )
+    right_html = (
+        f'<div class="fc-side-card"><div class="fc-side-label">Next ▶</div>'
+        f'<div class="fc-side-text">{next_q}</div></div>'
+        if has_next else '<div class="fc-side-card fc-side-empty"></div>'
+    )
+
+    col_prev, col_center, col_next = st.columns([1, 2, 1])
+
+    with col_prev:
+        st.markdown(left_html, unsafe_allow_html=True)
+        if has_prev:
+            st.markdown('<div class="fc-side-nav-btn">', unsafe_allow_html=True)
+            if st.button("◀ Previous card", key="fc_nav_prev", use_container_width=True):
+                st.session_state.flashcard_current -= 1
+                st.session_state.flashcard_direction = "prev"
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_center:
+        st.markdown(
+            f"""
+            <div class="fc-center-wrap">
+              <div class="fc-single-card {direction_class}">
+                <input type="checkbox" id="{card_id}" class="fc-toggle" />
+                <label for="{card_id}" class="fc-card-inner">
+                  <div class="fc-card-face fc-card-front">{star_html}
+                    <div class="fc-card-label-q">Question {current + 1} / {total}</div>
+                    <div class="fc-card-text">{q}</div>
+                    <div class="fc-card-hint">Tap to flip · swipe right = know it · left = still learning</div>
+                  </div>
+                  <div class="fc-card-face fc-card-back">{star_html}
+                    <div class="fc-card-label-a">Answer</div>
+                    <div class="fc-card-text">{a}</div>
+                    <div class="fc-card-hint">Tap to flip back · swipe to mark</div>
+                  </div>
+                </label>
+              </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+
+    with col_next:
+        st.markdown(right_html, unsafe_allow_html=True)
+        if has_next:
+            st.markdown('<div class="fc-side-nav-btn">', unsafe_allow_html=True)
+            if st.button("Next card ▶", key="fc_nav_next", use_container_width=True):
+                st.session_state.flashcard_current += 1
+                st.session_state.flashcard_direction = "next"
+                st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
     # ── Dot indicators ────────────────────────────────────────
     st.markdown(_build_dots_html(current, total), unsafe_allow_html=True)
@@ -1016,28 +1071,15 @@ def render_flashcard_deck():
 
     # ── Swipe hint ────────────────────────────────────────────
     st.markdown(
-        '<div class="fc-swipe-hint">👉 Swipe the card: '
-        '<b>right = know it</b> &nbsp;·&nbsp; <b class="fc-hint-no">left = still learning</b></div>',
+        '<div class="fc-swipe-hint">👉 Swipe the card, tap the previews above to jump, or use '
+        '<b>Know it / Still learning</b> below.</div>',
         unsafe_allow_html=True,
     )
 
-    # ── Star + arrow navigation row ───────────────────────────
-    col_star, col_prev, col_next = st.columns([2, 1, 1])
-    with col_star:
-        if st.button("⭐ Unstar" if is_starred else "⭐ Star", key=f"star_{card_index}", use_container_width=True):
-            st.session_state.flashcard_starred[card_index] = not is_starred
-            st.rerun()
-    with col_prev:
-        if st.button("← Prev", use_container_width=True, disabled=current == 0, key="fc_deck_prev"):
-            st.session_state.flashcard_current -= 1
-            st.session_state.flashcard_direction = "prev"
-            st.rerun()
-    with col_next:
-        is_last_card = current >= total - 1
-        if st.button("Skip →", use_container_width=True, disabled=is_last_card, key="fc_deck_skip"):
-            st.session_state.flashcard_current += 1
-            st.session_state.flashcard_direction = "next"
-            st.rerun()
+    # ── Star row ────────────────────────────────────────────
+    if st.button("⭐ Unstar" if is_starred else "⭐ Star", key=f"star_{card_index}", use_container_width=True):
+        st.session_state.flashcard_starred[card_index] = not is_starred
+        st.rerun()
 
     # ── Know / Still learning ─────────────────────────────────
     col_learning, col_know = st.columns(2)

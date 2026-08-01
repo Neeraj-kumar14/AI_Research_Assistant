@@ -394,12 +394,12 @@ def inject_css():
         [data-testid="stChatInput"] > div,
         [data-testid="stChatInput"] > div > div,
         [data-testid="stChatInput"] > div > div > div {{
-            background: {COLOR_BG_2} !important;
+            background: {COLOR_BG} !important;
         }}
         [data-testid="stChatInput"] {{
             border-radius: 22px !important;
             border: 1px solid {COLOR_BORDER} !important;
-            background: {COLOR_BG_2} !important;
+            background: {COLOR_BG} !important;
             box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04) !important;
             overflow: hidden !important;
         }}
@@ -409,7 +409,7 @@ def inject_css():
         }}
         [data-testid="stChatInput"] textarea,
         [data-testid="stChatInput"] textarea:focus {{
-            background: {COLOR_BG_2} !important;
+            background: {COLOR_BG} !important;
             font-family: {FONT_BODY} !important;
             color: {COLOR_INK} !important;
             caret-color: {COLOR_ACCENT} !important;
@@ -435,8 +435,26 @@ def inject_css():
         [data-testid="stBottomBlockContainer"] [data-baseweb="base-input"],
         [data-testid="stBottomBlockContainer"] [data-baseweb="base-input"] > div,
         [data-testid="stBottomBlockContainer"] textarea {{
-            background: {COLOR_BG_2} !important;
+            background: {COLOR_BG} !important;
             color: {COLOR_INK} !important;
+        }}
+        /* Default theme for every popover trigger button (e.g. "Manage
+           documents"). Without this, only buttons matched by a more
+           specific rule below (like the round "+" composer button) get
+           re-skinned, and everything else falls back to Streamlit's
+           default light-theme button — which is why "Manage documents"
+           was showing up as a plain white/invisible pill. */
+        [data-testid="stPopoverButton"] {{
+            border-radius: 999px !important;
+            border: 1px solid {COLOR_BORDER} !important;
+            background: {COLOR_PAPER_RAISED} !important;
+            color: {COLOR_INK} !important;
+            font-weight: 500 !important;
+            backdrop-filter: blur(10px);
+        }}
+        [data-testid="stPopoverButton"]:hover {{
+            border-color: {COLOR_ACCENT} !important;
+            color: {COLOR_ACCENT} !important;
         }}
         .st-key-composer_plus [data-testid="stPopoverButton"] {{
             border-radius: 50% !important;
