@@ -181,25 +181,44 @@ def inject_css():
             background: transparent;
             border: none;
             padding: 0.35rem 0;
-            gap: 0.65rem;
+            gap: 0;
+        }}
+        /* Avatars removed entirely — a plain colored icon box next to
+           every message read as noise rather than identity, so the
+           transcript now relies on bubble side + color alone (the
+           ChatGPT convention) to tell user from assistant. */
+        [data-testid="stChatMessageAvatarUser"], [data-testid="stChatMessageAvatarAssistant"] {{
+            display: none !important;
         }}
         [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) {{
-            flex-direction: row-reverse;
+            display: flex;
+            justify-content: flex-end;
+            width: 100%;
         }}
+        /* Bubble now shrink-wraps its text (width: fit-content) instead
+           of stretching to the container, so a short question renders
+           as a short pill hugging the right edge instead of a
+           full-width bar — matching ChatGPT's user-bubble behavior. */
         [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] {{
+            display: inline-flex;
+            width: fit-content;
+            max-width: 82%;
             background: {COLOR_PAPER_RAISED};
             border: 1px solid {COLOR_BORDER};
-            border-radius: 16px;
+            border-radius: 18px;
             padding: 0.6rem 1rem;
-            max-width: 82%;
             margin-left: auto;
+            margin-right: 0;
             backdrop-filter: blur(10px);
+        }}
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] [data-testid="stMarkdownContainer"],
+        [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarUser"]) [data-testid="stChatMessageContent"] p {{
+            width: fit-content;
+            margin: 0;
         }}
         [data-testid="stChatMessage"]:has([data-testid="stChatMessageAvatarAssistant"]) [data-testid="stChatMessageContent"] {{
             padding: 0.15rem 0;
-        }}
-        [data-testid="stChatMessageAvatarUser"], [data-testid="stChatMessageAvatarAssistant"] {{
-            box-shadow: none;
+            width: 100%;
         }}
 
         /* ==========================================================
@@ -678,6 +697,119 @@ def inject_css():
             flex: 1 1 auto !important;
             min-width: 8.2rem;
             width: auto !important;
+        }}
+
+        /* ==========================================================
+           Left sidebar — glass "3D" navigation panel: New chat,
+           study tools, then a read-only history of past questions.
+           Replaces the old horizontal toolbar pill row.
+           ========================================================== */
+        [data-testid="stSidebar"] {{
+            background: linear-gradient(165deg, rgba(13,16,36,0.97) 0%, rgba(5,6,15,0.99) 100%);
+            border-right: 1px solid {COLOR_BORDER};
+            box-shadow: 14px 0 44px rgba(0,0,0,0.5), inset -1px 0 0 rgba(255,255,255,0.04);
+        }}
+        [data-testid="stSidebar"] > div:first-child {{
+            padding-top: 1.1rem;
+        }}
+        .sb-brand {{
+            display: flex;
+            align-items: center;
+            gap: 0.55rem;
+            font-family: {FONT_DISPLAY};
+            font-weight: 600;
+            font-size: 1.02rem;
+            color: {COLOR_INK};
+            padding: 0 0.15rem 1rem 0.15rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid {COLOR_BORDER};
+        }}
+        .sb-brand .mark {{
+            width: 28px; height: 28px;
+            display: flex; align-items: center; justify-content: center;
+            background: linear-gradient(135deg, {COLOR_ACCENT}, {COLOR_VIOLET});
+            color: #05060F;
+            border-radius: 8px;
+            font-size: 0.92rem;
+            box-shadow: 0 0 14px rgba(34,211,238,0.45);
+        }}
+        /* New chat — the one bold, "raised" action at the top, tilted
+           slightly to match the console's 3D language and lifting
+           further on hover. */
+        .st-key-sb_new_chat .stButton > button {{
+            width: 100%;
+            background: linear-gradient(135deg, {COLOR_ACCENT}, {COLOR_VIOLET}) !important;
+            color: #05060F !important;
+            font-weight: 700 !important;
+            border: none !important;
+            border-radius: 12px !important;
+            padding: 0.6rem 0.9rem !important;
+            box-shadow: 0 8px 22px rgba(124,92,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25) !important;
+            transform: perspective(600px) rotateX(0deg) translateY(0);
+            transition: transform 0.18s ease, box-shadow 0.18s ease !important;
+        }}
+        .st-key-sb_new_chat .stButton > button:hover {{
+            transform: perspective(600px) rotateX(4deg) translateY(-2px) !important;
+            box-shadow: 0 14px 30px rgba(124,92,255,0.5), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+        }}
+        /* Study-tool nav rows — flat, left-aligned list items rather
+           than centered pills, the way a real sidebar nav reads. */
+        .st-key-sb_tools .stButton > button, .st-key-sb_tools .stDownloadButton > button {{
+            width: 100%;
+            justify-content: flex-start !important;
+            text-align: left !important;
+            background: transparent !important;
+            border: 1px solid transparent !important;
+            color: {COLOR_INK_SOFT} !important;
+            font-weight: 500 !important;
+            padding: 0.5rem 0.7rem !important;
+            border-radius: 10px !important;
+            box-shadow: none !important;
+        }}
+        .st-key-sb_tools .stButton > button:hover, .st-key-sb_tools .stDownloadButton > button:hover {{
+            background: {COLOR_PAPER_RAISED} !important;
+            border-color: {COLOR_BORDER} !important;
+            color: {COLOR_INK} !important;
+            transform: translateX(2px) !important;
+        }}
+        .st-key-sb_tools .stButton > button:disabled {{
+            color: rgba(159,176,217,0.35) !important;
+        }}
+        .sb-section-label {{
+            font-family: {FONT_MONO};
+            font-size: 0.66rem;
+            letter-spacing: 0.09em;
+            text-transform: uppercase;
+            color: {COLOR_INK_SOFT};
+            opacity: 0.65;
+            margin: 1.1rem 0.15rem 0.4rem 0.15rem;
+        }}
+        /* History — read-only list of past questions, most recent
+           first; not a nav (nothing to click through to yet), just a
+           trail of what's been asked in this session. */
+        .sb-history-item {{
+            font-size: 0.82rem;
+            color: {COLOR_INK_SOFT};
+            padding: 0.42rem 0.6rem;
+            border-radius: 9px;
+            margin-bottom: 0.15rem;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            border: 1px solid transparent;
+            transition: background 0.15s ease, border-color 0.15s ease;
+        }}
+        .sb-history-item:hover {{
+            background: {COLOR_PAPER_MUTED};
+            border-color: {COLOR_BORDER};
+            color: {COLOR_INK};
+        }}
+        .sb-history-empty {{
+            font-size: 0.79rem;
+            color: {COLOR_INK_SOFT};
+            opacity: 0.55;
+            padding: 0.3rem 0.6rem;
+            font-style: italic;
         }}
 
         /* ==========================================================

@@ -1,284 +1,37 @@
-import hashlib
-import logging
-import os
-import pickle
-from concurrent.futures import ThreadPoolExecutor
-import time
+import html
 
 import streamlit as st
 
-logger = logging.getLogger(__name__)
-
-from utils.pdf_loader import load_pdf
-from utils.docx_loader import load_docx
-from utils.chunker import create_chunks
-from utils.embedding import create_embeddings
-from utils.vector_store import create_vector_store
-from utils.language_detector import detect_language
-from utils.llm import (
-    summarize_pdf,
-    generate_flashcards,
-    generate_quiz,
-)
+from components.chat_toolbar import clear_conversation, _start_takeover
+from utils.llm import summarize_pdf
 from utils.pdf_export import export_notes_to_pdf
 from utils.errors import show_llm_error
-from utils.theme import section_label
-
-# Disk cache for processed documents. OCR + embedding on a large (20-50MB,
-# partly scanned) file can take a couple of minutes, so if the same file
-# gets re-uploaded (dev reload, reopening the app, a second person using
-# the same PDF) we skip straight to a ready vector store instead of
-# redoing OCR and re-embedding everything.
-CACHE_DIR = ".study_cache"
-
-# Without any eviction, this directory grows by one .pkl per unique
-# file ever uploaded, forever — on a free host with limited disk this
-# eventually fills up and every write starts failing. Two independent
-# limits keep it bounded:
-#   - CACHE_TTL_SECONDS: delete entries older than this regardless of size
-#   - MAX_CACHE_BYTES: if still over this after the TTL sweep, delete the
-#     least-recently-used entries (oldest access time first) until under it
-# Both are best-effort housekeeping, run right before every new write —
-# cheap, since it only runs exactly when the cache is about to grow.
-CACHE_TTL_SECONDS = int(os.getenv("CACHE_TTL_SECONDS", str(7 * 24 * 60 * 60)))  # 7 days
-MAX_CACHE_BYTES = int(os.getenv("MAX_CACHE_BYTES", str(500 * 1024 * 1024)))  # 500 MB
-
-
-def _cleanup_cache():
-    if not os.path.isdir(CACHE_DIR):
-        return
-
-    now = time.time()
-    entries = []
-
-    for name in os.listdir(CACHE_DIR):
-        path = os.path.join(CACHE_DIR, name)
-        try:
-            stat = os.stat(path)
-        except OSError:
-            continue
-
-        # Expired by age — remove outright.
-        if (now - stat.st_mtime) > CACHE_TTL_SECONDS:
-            try:
-                os.remove(path)
-            except OSError:
-                pass
-            continue
-
-        entries.append((path, stat.st_mtime, stat.st_size))
-
-    # If still over the size budget, evict oldest (by mtime) first —
-    # a simple LRU-by-write-time, good enough for a speed-optimization
-    # cache where losing an entry just means one slow re-process later.
-    total_size = sum(size for _, _, size in entries)
-    if total_size > MAX_CACHE_BYTES:
-        entries.sort(key=lambda e: e[1])  # oldest first
-        for path, _, size in entries:
-            if total_size <= MAX_CACHE_BYTES:
-                break
-            try:
-                os.remove(path)
-                total_size -= size
-            except OSError:
-                pass
-
-
-def _cache_key(uploaded_files):
-    h = hashlib.md5()
-    for f in uploaded_files:
-        h.update(f.name.encode())
-        h.update(f.getvalue())
-    return h.hexdigest()
-
-
-def _cache_path(key):
-    return os.path.join(CACHE_DIR, f"{key}.pkl")
-
-
-def _load_from_cache(key):
-    path = _cache_path(key)
-    if not os.path.exists(path):
-        return None
-    try:
-        with open(path, "rb") as f:
-            data = pickle.load(f)
-        os.utime(path, None)  # mark as recently used, so TTL/LRU eviction
-                               # doesn't remove an entry that's still active
-        return data
-    except Exception:
-        return None
-
-
-def _save_to_cache(key, data):
-    os.makedirs(CACHE_DIR, exist_ok=True)
-    _cleanup_cache()
-    try:
-        with open(_cache_path(key), "wb") as f:
-            pickle.dump(data, f)
-    except Exception:
-        pass  # cache is a speed optimization, never let it break processing
-
-
-def _start_takeover(stage_key, value):
-    """Quiz / flashcards / notes are full-screen "takeover" modes, each
-    driven by its own <name>_stage session-state flag. Those flags are
-    independent, so without this guard a user could e.g. open a quiz,
-    then click "Generate flashcards" in the sidebar (always visible)
-    before closing it — leaving quiz_stage=='active' AND
-    flashcard_stage=='active' at once. app.py would then render both
-    screens in the same script run, and any unkeyed widget the two
-    screens happen to share (by label/type) raises
-    StreamlitDuplicateElementId. Starting one mode always clears the
-    other two first, so at most one takeover screen is ever mounted."""
-    for key in ("quiz_stage", "flashcard_stage", "notes_stage"):
-        if key != stage_key:
-            st.session_state[key] = None
-    st.session_state[stage_key] = value
 
 
 def render_sidebar():
+    """Left navigation: New chat up top, then the study tools (each a
+    flat nav row instead of the old centered pill), then a read-only
+    trail of everything asked so far this session — the ChatGPT-style
+    layout, in a glass "3D" panel matching the rest of the console."""
     with st.sidebar:
         st.markdown(
-            "<div style='font-family:\"Source Serif 4\",serif;font-size:1.15rem;"
-            "font-weight:600;color:#1B2A4A;margin-bottom:0.2rem;'>📚 Study Desk</div>",
+            '<div class="sb-brand"><span class="mark">📚</span> AI Research Assistant</div>',
             unsafe_allow_html=True,
         )
-        st.caption("Upload once, ask as many times as you like.")
 
-        section_label("Documents")
+        with st.container(key="sb_new_chat"):
+            if st.button("＋  New chat", use_container_width=True, key="sb_new_chat_btn"):
+                clear_conversation()
+                st.rerun()
 
-        uploaded_files = st.file_uploader(
-            "Choose PDF or DOCX Files",
-            type=["pdf", "docx"],
-            accept_multiple_files=True,
-            label_visibility="collapsed",
-        )
+        pdf_loaded = st.session_state.get("pdf_loaded", False)
 
-        section_label("Search mode")
-
-        st.session_state.search_mode = st.radio(
-            "Choose search mode:",
-            ["Hybrid", "PDF Only", "Web Only"],
-            index=["Hybrid", "PDF Only", "Web Only"].index(
-                st.session_state.search_mode
-            ),
-            label_visibility="collapsed",
-        )
-
-        if uploaded_files:
-            current_files = [pdf.name for pdf in uploaded_files]
-
-            if (
-                "current_pdf_list" not in st.session_state
-                or st.session_state.current_pdf_list != current_files
+        st.markdown('<div class="sb-section-label">Study tools</div>', unsafe_allow_html=True)
+        with st.container(key="sb_tools"):
+            if st.button(
+                "📑  Summarize", use_container_width=True, key="sb_nav_summarize",
+                disabled=not pdf_loaded,
             ):
-                progress_label = st.empty()
-                progress_bar = st.progress(0)
-
-                cache_key = _cache_key(uploaded_files)
-                cached = _load_from_cache(cache_key)
-
-                if cached is not None:
-                    progress_label.markdown("Loading cached document…")
-                    all_pages = cached["pages"]
-                    chunks = cached["chunks"]
-                    embeddings = cached["embeddings"]
-                    detected_language = cached["language"]
-                    progress_bar.progress(90)
-                else:
-                    def _load_one(uploaded_file):
-                        if uploaded_file.name.lower().endswith(".pdf"):
-                            return load_pdf(uploaded_file)
-                        elif uploaded_file.name.lower().endswith(".docx"):
-                            return load_docx(uploaded_file)
-                        return []
-
-                    # Loading multiple files can overlap I/O even though text
-                    # extraction itself is CPU-bound, so this is a cheap win
-                    # for multi-file uploads and a no-op for a single file.
-                    # Note: load_pdf also runs OCR on any scanned pages it
-                    # finds, which is the slowest part of this step for
-                    # mixed text/scanned uploads.
-                    progress_label.markdown("Reading documents (OCR runs automatically on scanned pages)…")
-                    start = time.perf_counter()
-                    all_pages = []
-                    if len(uploaded_files) > 1:
-                        with ThreadPoolExecutor(max_workers=min(4, len(uploaded_files))) as pool:
-                            for pages in pool.map(_load_one, uploaded_files):
-                                all_pages.extend(pages)
-                    else:
-                        all_pages.extend(_load_one(uploaded_files[0]))
-                    progress_bar.progress(15)
-                    logger.debug("PDF loading time: %.2f sec", time.perf_counter() - start)
-
-                    pdf_text_for_lang = "\n\n".join(page["text"] for page in all_pages)
-
-                    progress_label.markdown("Detecting language…")
-                    detected_language = detect_language(pdf_text_for_lang)
-                    progress_bar.progress(20)
-
-                    progress_label.markdown("Splitting into chunks…")
-                    chunks = create_chunks(all_pages)
-                    chunk_texts = [chunk["text"] for chunk in chunks]
-                    progress_bar.progress(35)
-
-                    # This is the slow step on large documents, so give it
-                    # real, granular progress instead of a flat spinner.
-                    def _on_embed_progress(done, total):
-                        pct = 35 + int((done / total) * 50) if total else 85
-                        progress_bar.progress(min(pct, 85))
-                        progress_label.markdown(f"Embedding chunks… {done}/{total}")
-                    
-                    start = time.perf_counter()
-                    embeddings = create_embeddings(chunk_texts, progress_callback=_on_embed_progress)
-                    logger.debug("Embedding time: %.2f sec", time.perf_counter() - start)
-                    progress_bar.progress(90)
-
-                    _save_to_cache(
-                        cache_key,
-                        {
-                            "pages": all_pages,
-                            "chunks": chunks,
-                            "embeddings": embeddings,
-                            "language": detected_language,
-                        },
-                    )
-
-                pdf_text = "\n\n".join(page["text"] for page in all_pages)
-                st.session_state.document_language = detected_language
-                st.session_state.pdf_text = pdf_text
-                st.session_state.pages = all_pages
-
-                progress_label.markdown("Building search index…")
-                vector_store = create_vector_store(embeddings)
-                progress_bar.progress(100)
-
-                st.session_state.vector_store = vector_store
-                st.session_state.chunks = chunks
-                st.session_state.pdf_loaded = True
-                st.session_state.current_pdf_list = current_files
-
-                progress_label.empty()
-                progress_bar.empty()
-                st.success("Document ready")
-
-                section_label("Document stats")
-
-                col1, col2 = st.columns(2)
-                with col1:
-                    st.metric("Documents", len(uploaded_files))
-                    st.metric("Pages", len(all_pages))
-                with col2:
-                    st.metric("Chunks", len(chunks))
-                    st.metric("Language", st.session_state.document_language)
-
-            else:
-                st.success("Document already loaded")
-
-            section_label("Study tools")
-
-            if st.button("📑  Summarize document", use_container_width=True, key="sb_summarize"):
                 with st.spinner("Generating summary..."):
                     try:
                         summary = summarize_pdf(
@@ -288,64 +41,58 @@ def render_sidebar():
                     except Exception as e:
                         show_llm_error(e, action="generate the summary")
                         st.stop()
-
-                st.session_state.messages.append({"role": "user", "content": "📑 Summarize this PDF"})
+                st.session_state.messages.append({"role": "user", "content": "📑 Summarize this document"})
                 st.session_state.messages.append({"role": "assistant", "content": summary})
                 st.rerun()
 
-            if st.button("📝  Generate study notes", use_container_width=True, key="sb_notes"):
+            if st.button(
+                "📝  Study notes", use_container_width=True, key="sb_nav_notes",
+                disabled=not pdf_loaded,
+            ):
                 _start_takeover("notes_stage", "setup")
+                st.rerun()
+
+            if st.button(
+                "🧠  Flashcards", use_container_width=True, key="sb_nav_flashcards",
+                disabled=not pdf_loaded,
+            ):
+                _start_takeover("flashcard_stage", "setup")
+                st.rerun()
+
+            if st.button(
+                "❓  Quiz", use_container_width=True, key="sb_nav_quiz",
+                disabled=not pdf_loaded,
+            ):
+                _start_takeover("quiz_stage", "setup")
                 st.rerun()
 
             if st.session_state.get("study_notes"):
                 pdf_file = export_notes_to_pdf(st.session_state.study_notes)
                 with open(pdf_file, "rb") as f:
                     st.download_button(
-                        "📄  Download notes (.pdf)",
+                        "📄  Download notes",
                         data=f,
                         file_name="study_notes.pdf",
                         mime="application/pdf",
                         use_container_width=True,
-                        key="sb_dl_pdf",
+                        key="sb_dl_notes",
                     )
 
-                st.download_button(
-                    "📥  Download notes (.md)",
-                    data=st.session_state.study_notes,
-                    file_name="study_notes.md",
-                    mime="text/markdown",
-                    use_container_width=True,
-                    key="sb_dl_md",
+        if not pdf_loaded:
+            st.caption("Attach a document to unlock these.")
+
+        st.markdown('<div class="sb-section-label">History</div>', unsafe_allow_html=True)
+        past_questions = [
+            m["content"]
+            for m in st.session_state.get("messages", [])
+            if m.get("role") == "user" and m.get("type") not in ("quiz", "flashcards") and m.get("content")
+        ]
+        if past_questions:
+            for q in reversed(past_questions[-25:]):
+                label = q if len(q) <= 42 else q[:39] + "…"
+                st.markdown(
+                    f'<div class="sb-history-item" title="{html.escape(q)}">{html.escape(label)}</div>',
+                    unsafe_allow_html=True,
                 )
-
-            if st.button("🧠  Generate flashcards", use_container_width=True, key="sb_flashcards"):
-                _start_takeover("flashcard_stage", "setup")
-                st.rerun()
-
-            if st.button("❓  Generate quiz", use_container_width=True, key="sb_quiz"):
-                _start_takeover("quiz_stage", "setup")
-                st.rerun()
-
-            st.divider()
-
-            if st.button("🗑  Clear chat", use_container_width=True, key="sb_clear_chat"):
-                st.session_state.messages = []
-                st.session_state.pdf_loaded = False
-                st.session_state.review_mode = False
-                st.session_state.quiz = None
-                st.session_state.quiz_stage = None
-                st.session_state.quiz_answers = {}
-                st.session_state.quiz_score = 0
-                st.session_state.quiz_submitted = False
-                st.session_state.current_question = 0
-                st.session_state.quiz_question_start_time = None
-                st.session_state.study_notes = None
-                st.session_state.notes_stage = None
-                st.session_state.notes_focus = ""
-
-                for key in ["pdf_text", "chunks", "vector_store", "current_pdf_list"]:
-                    if key in st.session_state:
-                        del st.session_state[key]
-
-                st.success("Cleared")
-                st.rerun()
+        else:
+            st.markdown('<div class="sb-history-empty">Nothing asked yet</div>', unsafe_allow_html=True)

@@ -20,9 +20,9 @@ from components.chat_toolbar import (
     sync_documents,
     add_files,
     render_document_chips,
-    render_toolbar_actions,
     render_composer_options,
 )
+from components.sidebar import render_sidebar
 from components.chat import render_chat, render_source_cards
 from components.quiz import render_quiz
 from components.quiz_setup import render_quiz_setup
@@ -129,7 +129,12 @@ st.session_state.last_active = now
 sync_documents()
 
 # -----------------------------
-# Top bar (replaces the old sidebar branding)
+# Left sidebar — New chat, study tools, history
+# -----------------------------
+render_sidebar()
+
+# -----------------------------
+# Top bar
 # -----------------------------
 _status = ""
 if st.session_state.pdf_loaded:
@@ -140,8 +145,6 @@ if st.session_state.pdf_loaded:
     )
 with st.container(key="sticky_header"):
     render_topbar(_status)
-    if st.session_state.pdf_loaded:
-        render_toolbar_actions()
 
 # -----------------------------
 # Landing hero (only before a document is loaded, so the chat isn't

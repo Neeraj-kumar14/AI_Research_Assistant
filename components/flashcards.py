@@ -336,9 +336,10 @@ _DECK_CSS = """
 }
 
 /* Side ghost cards — tilted in 3D so they read as a stack fanning away
-   from the active card, like a physical card deck. A small floating
-   circular arrow (see .fc-side-nav-btn below) sits on top of each one
-   as the actual prev/next control — no more full-width text button. */
+   from the active card, like a physical card deck. A small transparent
+   floating arrow (see .st-key-fc_nav_prev / _next below) sits inside each card's
+   own thinned-out receding edge as the actual prev/next control —
+   no separate button row underneath. */
 .fc-side-card {
     width: 100%;
     height: 240px;
@@ -359,22 +360,22 @@ _DECK_CSS = """
     box-sizing: border-box;
 }
 .fc-side-card.fc-side-left {
-    transform: perspective(900px) rotateY(-22deg) scale(0.93);
+    transform: perspective(900px) rotateY(-38deg) scale(0.86);
     transform-origin: right center;
     box-shadow: 14px 14px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .fc-side-card.fc-side-right {
-    transform: perspective(900px) rotateY(22deg) scale(0.93);
+    transform: perspective(900px) rotateY(38deg) scale(0.86);
     transform-origin: left center;
     box-shadow: -14px 14px 34px rgba(0,0,0,0.45), inset 0 1px 0 rgba(255,255,255,0.06);
 }
 .fc-side-card.fc-side-left:hover {
     opacity: 0.85;
-    transform: perspective(900px) rotateY(-14deg) scale(0.95);
+    transform: perspective(900px) rotateY(-30deg) scale(0.89);
 }
 .fc-side-card.fc-side-right:hover {
     opacity: 0.85;
-    transform: perspective(900px) rotateY(14deg) scale(0.95);
+    transform: perspective(900px) rotateY(30deg) scale(0.89);
 }
 .fc-side-card.fc-side-empty {
     opacity: 0;
@@ -383,49 +384,58 @@ _DECK_CSS = """
     box-shadow: none;
     height: 240px;
 }
-/* Floating circular 3D arrow — overlaps the bottom edge of its tilted
-   preview card via the negative margin, so it reads as one clickable
-   unit without a wordy "Previous card"/"Next card" button underneath.
-   The [kind] attribute selector isn't for styling — it raises
-   specificity above theme.py's global `.stButton > button[kind="secondary"]`
-   rule so our colors reliably win (same fix as the quiz question palette). */
-.fc-side-nav-btn {
-    display: flex;
-    justify-content: center;
-    margin-top: -26px;
+/* Prev/next control — no more standalone button sitting below the
+   preview card. Instead the arrow is pulled up (negative margin) and
+   pushed to the card's own receding, near-empty outer edge (the side
+   the rotateY tilt visually thins out), so it reads as part of the
+   card itself rather than a separate row of UI underneath it.
+   Fully transparent glass glyph with a soft 3D hover lift.
+   `.st-key-fc_nav_prev` / `.st-key-fc_nav_next` are the classes
+   Streamlit adds directly to a keyed st.button's own wrapper div —
+   a reliable hook, unlike styling by DOM position. */
+.st-key-fc_nav_prev, .st-key-fc_nav_next {
     position: relative;
     z-index: 5;
+    margin-top: -164px;
+    margin-bottom: 76px;
+    width: auto !important;
 }
-.fc-side-nav-btn .stButton { width: auto !important; }
-.fc-side-nav-btn .stButton > button[kind] {
-    width: 52px !important;
-    height: 52px !important;
-    min-width: 52px !important;
+.st-key-fc_nav_prev { margin-left: -6px; margin-right: auto; }
+.st-key-fc_nav_next { margin-right: -6px; margin-left: auto; }
+.st-key-fc_nav_prev button[kind], .st-key-fc_nav_next button[kind] {
+    width: 46px !important;
+    height: 46px !important;
+    min-width: 46px !important;
     padding: 0 !important;
     border-radius: 50% !important;
-    border: 1px solid rgba(255,255,255,0.2) !important;
-    background: linear-gradient(145deg, rgba(124,92,255,0.4), rgba(11,15,34,0.96)) !important;
-    color: #E8ECFA !important;
-    font-size: 1.25rem !important;
+    border: 1px solid rgba(255,255,255,0.14) !important;
+    background: rgba(255,255,255,0.04) !important;
+    backdrop-filter: blur(6px) !important;
+    color: rgba(234,240,255,0.55) !important;
+    font-size: 1.2rem !important;
     line-height: 1 !important;
     font-weight: 700 !important;
-    box-shadow:
-        0 10px 22px rgba(0,0,0,0.5),
-        0 0 0 1px rgba(124,92,255,0.2),
-        inset 0 1px 0 rgba(255,255,255,0.28) !important;
-    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease !important;
+    box-shadow: 0 6px 16px rgba(0,0,0,0.3) !important;
+    transform: perspective(500px) rotateY(0deg) translateY(0);
+    animation: fcArrowFloat 2.6s ease-in-out infinite;
+    transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease, color 0.2s ease, border-color 0.2s ease !important;
 }
-.fc-side-nav-btn .stButton > button[kind]:hover {
-    transform: translateY(-3px) scale(1.1) !important;
-    background: linear-gradient(145deg, rgba(34,211,238,0.45), rgba(11,15,34,0.96)) !important;
+.st-key-fc_nav_prev button[kind] { animation-delay: 0s; }
+.st-key-fc_nav_next button[kind] { animation-delay: 1.3s; }
+@keyframes fcArrowFloat {
+    0%, 100% { transform: perspective(500px) rotateY(0deg) translateY(0); }
+    50% { transform: perspective(500px) rotateY(8deg) translateY(-4px); }
+}
+.st-key-fc_nav_prev button[kind]:hover, .st-key-fc_nav_next button[kind]:hover {
+    background: rgba(34,211,238,0.16) !important;
+    border-color: rgba(34,211,238,0.4) !important;
     color: #22D3EE !important;
-    box-shadow:
-        0 14px 28px rgba(0,0,0,0.55),
-        0 0 22px rgba(34,211,238,0.4),
-        inset 0 1px 0 rgba(255,255,255,0.32) !important;
+    animation-play-state: paused;
+    transform: perspective(500px) scale(1.14) translateY(-3px) !important;
+    box-shadow: 0 12px 26px rgba(0,0,0,0.4), 0 0 18px rgba(34,211,238,0.35) !important;
 }
-.fc-side-nav-btn .stButton > button[kind]:active {
-    transform: translateY(0) scale(0.95) !important;
+.st-key-fc_nav_prev button[kind]:active, .st-key-fc_nav_next button[kind]:active {
+    transform: perspective(500px) scale(0.96) !important;
 }
 .fc-side-label {
     font-family: 'JetBrains Mono', ui-monospace, monospace;
@@ -616,14 +626,21 @@ _DECK_CSS = """
 @media (max-width: 640px) {
     .fc-side-card { display: none; }
     .fc-center-wrap { width: 100%; }
-    .fc-side-nav-btn {
+    /* No ghost card to sit inside of on narrow screens, so the arrows
+       drop back to a normal inline position instead of the large
+       negative offset used to reach into the (now hidden) card. */
+    .st-key-fc_nav_prev, .st-key-fc_nav_next {
         margin-top: 0.6rem;
+        margin-bottom: 0;
+        margin-left: auto !important;
+        margin-right: auto !important;
     }
-    .fc-side-nav-btn .stButton > button[kind] {
+    .st-key-fc_nav_prev button[kind], .st-key-fc_nav_next button[kind] {
         width: 44px !important;
         height: 44px !important;
         min-width: 44px !important;
         font-size: 1.1rem !important;
+        animation: none !important;
     }
 }
 @media (prefers-reduced-motion: reduce) {
@@ -923,6 +940,30 @@ def _inject_swipe_handler(card_id, current=0, total=0):
             attach();
             setTimeout(attach, 150);
             setTimeout(attach, 500);
+
+            // ── Keyboard nav: Left/Right arrow keys click the same
+            // (now-transparent) prev/next buttons the on-screen arrows
+            // use. Rebound on every render — rather than bound once —
+            // so isFirstCard/isLastCard (and which button exists) stay
+            // accurate as the current card changes; the old listener
+            // is removed first so they never stack up across reruns.
+            if (w.__fcKeyNavHandler) {
+                doc.removeEventListener('keydown', w.__fcKeyNavHandler);
+            }
+            w.__fcKeyNavHandler = function(e) {
+                if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+                const active = doc.activeElement;
+                const tag = active && active.tagName;
+                if (tag === 'INPUT' || tag === 'TEXTAREA' || (active && active.isContentEditable)) return;
+
+                const selector = e.key === 'ArrowLeft' ? '.st-key-fc_nav_prev button' : '.st-key-fc_nav_next button';
+                const btn = doc.querySelector(selector);
+                if (btn && !btn.disabled) {
+                    e.preventDefault();
+                    btn.click();
+                }
+            };
+            doc.addEventListener('keydown', w.__fcKeyNavHandler);
         })();
         </script>
         """
@@ -1076,12 +1117,10 @@ def render_flashcard_deck():
     with col_prev:
         st.markdown(left_html, unsafe_allow_html=True)
         if has_prev:
-            st.markdown('<div class="fc-side-nav-btn">', unsafe_allow_html=True)
-            if st.button("‹", key="fc_nav_prev", use_container_width=True):
+            if st.button("‹", key="fc_nav_prev"):
                 st.session_state.flashcard_current -= 1
                 st.session_state.flashcard_direction = "prev"
                 st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
 
     with col_center:
         st.markdown(
@@ -1110,12 +1149,10 @@ def render_flashcard_deck():
     with col_next:
         st.markdown(right_html, unsafe_allow_html=True)
         if has_next:
-            st.markdown('<div class="fc-side-nav-btn">', unsafe_allow_html=True)
-            if st.button("›", key="fc_nav_next", use_container_width=True):
+            if st.button("›", key="fc_nav_next"):
                 st.session_state.flashcard_current += 1
                 st.session_state.flashcard_direction = "next"
                 st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
 
     # ── Dot indicators ────────────────────────────────────────
     st.markdown(_build_dots_html(current, total), unsafe_allow_html=True)
