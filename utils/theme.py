@@ -22,20 +22,20 @@ import streamlit as st
 
 # ---- Design tokens --------------------------------------------------------
 
-COLOR_BG = "#05060F"            # page background — near-black navy
-COLOR_BG_2 = "#0B0F22"          # secondary background stop (gradient)
-COLOR_INK = "#EAF0FF"           # primary text — near-white, cool
-COLOR_INK_SOFT = "#9FB0D9"      # secondary text — muted periwinkle
-COLOR_PAPER_RAISED = "rgba(255,255,255,0.055)"   # glass panel fill
-COLOR_PAPER_MUTED = "rgba(255,255,255,0.035)"    # dimmer glass fill
-COLOR_BORDER = "rgba(255,255,255,0.14)"
-COLOR_ACCENT = "#22D3EE"        # cyan — primary actions / links
-COLOR_ACCENT_DARK = "#0FA8C4"
-COLOR_VIOLET = "#7C5CFF"        # secondary accent — hero glow, badges
-COLOR_PINK = "#FF3EA5"          # tertiary accent — gamified highlights
-COLOR_GOLD = "#FFD166"          # XP / streak / emphasis
-COLOR_SUCCESS = "#3DDC97"
-COLOR_ERROR = "#FF5C7A"
+COLOR_BG = "#F3F4FB"            # page background — soft lavender-white
+COLOR_BG_2 = "#EAEBF7"          # secondary background stop (gradient)
+COLOR_INK = "#1B1C2E"           # primary text — deep indigo-black
+COLOR_INK_SOFT = "#6D7093"      # secondary text — muted slate-violet
+COLOR_PAPER_RAISED = "rgba(255,255,255,0.82)"    # glass panel fill (frosted white card)
+COLOR_PAPER_MUTED = "rgba(255,255,255,0.55)"     # dimmer glass fill
+COLOR_BORDER = "rgba(30,30,60,0.09)"
+COLOR_ACCENT = "#6C63FF"        # indigo-purple — primary actions / links
+COLOR_ACCENT_DARK = "#4F46E5"
+COLOR_VIOLET = "#8B7CFA"        # secondary accent — hero glow, badges
+COLOR_PINK = "#FF6FB5"          # tertiary accent — gamified highlights
+COLOR_GOLD = "#FFB84D"          # XP / streak / emphasis
+COLOR_SUCCESS = "#22B573"
+COLOR_ERROR = "#F0506E"
 
 FONT_DISPLAY = "'Space Grotesk', 'Sora', -apple-system, sans-serif"
 FONT_BODY = "'Inter', -apple-system, sans-serif"
@@ -70,8 +70,8 @@ def inject_css():
 
         .stApp {{
             background:
-                radial-gradient(ellipse 900px 500px at 15% -10%, rgba(124,92,255,0.20), transparent 60%),
-                radial-gradient(ellipse 800px 500px at 110% 10%, rgba(34,211,238,0.14), transparent 60%),
+                radial-gradient(ellipse 900px 500px at 15% -10%, rgba(139,124,250,0.20), transparent 60%),
+                radial-gradient(ellipse 800px 500px at 110% 10%, rgba(108,99,255,0.14), transparent 60%),
                 linear-gradient(180deg, {COLOR_BG} 0%, {COLOR_BG_2} 100%);
             background-attachment: fixed;
         }}
@@ -112,7 +112,7 @@ def inject_css():
             border-radius: 16px;
             backdrop-filter: blur(18px);
             -webkit-backdrop-filter: blur(18px);
-            box-shadow: 0 8px 28px rgba(0,0,0,0.35);
+            box-shadow: 0 8px 28px rgba(30,30,60,0.08);
         }}
         .app-topbar .brand {{
             display: flex;
@@ -127,10 +127,10 @@ def inject_css():
             width: 30px; height: 30px;
             display: flex; align-items: center; justify-content: center;
             background: linear-gradient(135deg, {COLOR_ACCENT}, {COLOR_VIOLET});
-            color: #05060F;
+            color: #FFFFFF;
             border-radius: 9px;
             font-size: 1rem;
-            box-shadow: 0 0 16px rgba(34,211,238,0.5);
+            box-shadow: 0 0 16px rgba(108,99,255,0.5);
         }}
         .app-topbar .status {{
             font-family: {FONT_MONO};
@@ -146,7 +146,7 @@ def inject_css():
             position: sticky;
             top: 0;
             z-index: 999;
-            background: linear-gradient(180deg, {COLOR_BG} 78%, rgba(5,6,15,0) 100%);
+            background: linear-gradient(180deg, {COLOR_BG} 78%, rgba(243,244,251,0) 100%);
             backdrop-filter: blur(10px);
             padding-top: 0.4rem;
             padding-bottom: 0.5rem;
@@ -170,7 +170,7 @@ def inject_css():
         .st-key-toolbar_row .stDownloadButton > button:hover {{
             border-color: {COLOR_ACCENT};
             color: {COLOR_ACCENT};
-            box-shadow: 0 0 12px rgba(34,211,238,0.25);
+            box-shadow: 0 0 12px rgba(108,99,255,0.25);
         }}
         .st-key-toolbar_row {{ margin-bottom: 0.6rem; }}
 
@@ -239,8 +239,8 @@ def inject_css():
             height: 220px;
             transform: translateX(-50%) rotateX(78deg);
             background-image:
-                linear-gradient(rgba(34,211,238,0.28) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(124,92,255,0.28) 1px, transparent 1px);
+                linear-gradient(rgba(108,99,255,0.28) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(139,124,250,0.28) 1px, transparent 1px);
             background-size: 42px 42px;
             -webkit-mask-image: linear-gradient(to top, black, transparent 85%);
             mask-image: linear-gradient(to top, black, transparent 85%);
@@ -272,14 +272,14 @@ def inject_css():
             position: relative;
             z-index: 1;
             padding: 2.4rem 2.6rem;
-            background: linear-gradient(155deg, rgba(255,255,255,0.075), rgba(255,255,255,0.02));
+            background: linear-gradient(155deg, rgba(255,255,255,0.92), rgba(255,255,255,0.68));
             border: 1px solid {COLOR_BORDER};
             border-radius: 22px;
             backdrop-filter: blur(22px);
             -webkit-backdrop-filter: blur(22px);
             box-shadow:
-                0 24px 60px rgba(0,0,0,0.45),
-                inset 0 1px 0 rgba(255,255,255,0.14);
+                0 24px 60px rgba(30,30,60,0.10),
+                inset 0 1px 0 rgba(255,255,255,0.7);
             transform: rotateX(3deg);
             transform-style: preserve-3d;
             transition: transform 0.5s cubic-bezier(0.22,1,0.36,1);
@@ -304,7 +304,7 @@ def inject_css():
         .study-hero h1 {{
             font-size: 2.35rem !important;
             margin: 0 0 0.6rem 0 !important;
-            background: linear-gradient(100deg, #FFFFFF 30%, {COLOR_ACCENT} 75%, {COLOR_VIOLET} 100%);
+            background: linear-gradient(100deg, {COLOR_INK} 30%, {COLOR_ACCENT} 75%, {COLOR_VIOLET} 100%);
             -webkit-background-clip: text;
             background-clip: text;
             color: transparent;
@@ -328,18 +328,18 @@ def inject_css():
             -webkit-backdrop-filter: blur(14px);
             transform-style: preserve-3d;
             transition: transform 0.35s cubic-bezier(0.22,1,0.36,1), box-shadow 0.35s ease, border-color 0.35s ease;
-            box-shadow: 0 10px 26px rgba(0,0,0,0.28);
+            box-shadow: 0 10px 26px rgba(30,30,60,0.07);
         }}
         .feature-card:hover {{
             transform: perspective(700px) rotateX(6deg) rotateY(-6deg) translateY(-5px);
-            border-color: rgba(34,211,238,0.45);
-            box-shadow: 0 18px 40px rgba(0,0,0,0.4), 0 0 22px rgba(34,211,238,0.18);
+            border-color: rgba(108,99,255,0.45);
+            box-shadow: 0 18px 40px rgba(30,30,60,0.12), 0 0 22px rgba(108,99,255,0.18);
         }}
         .feature-card .ico {{
             font-size: 1.35rem;
             margin-bottom: 0.4rem;
             display: block;
-            filter: drop-shadow(0 0 8px rgba(34,211,238,0.35));
+            filter: drop-shadow(0 0 8px rgba(108,99,255,0.35));
         }}
         .feature-card .title {{
             font-family: {FONT_DISPLAY};
@@ -368,7 +368,7 @@ def inject_css():
 
         /* ---- Sidebar ---- */
         section[data-testid="stSidebar"] {{
-            background-color: rgba(5,6,15,0.92);
+            background-color: rgba(255,255,255,0.92);
             border-right: 1px solid {COLOR_BORDER};
             backdrop-filter: blur(16px);
         }}
@@ -419,12 +419,12 @@ def inject_css():
             border-radius: 22px !important;
             border: 1px solid {COLOR_BORDER} !important;
             background: {COLOR_BG} !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04) !important;
+            box-shadow: 0 4px 20px rgba(30,30,60,0.08), inset 0 1px 0 rgba(255,255,255,0.6) !important;
             overflow: hidden !important;
         }}
         [data-testid="stChatInput"]:focus-within {{
-            border-color: rgba(34,211,238,0.45) !important;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5), 0 0 0 1px rgba(34,211,238,0.18) !important;
+            border-color: rgba(108,99,255,0.45) !important;
+            box-shadow: 0 4px 20px rgba(30,30,60,0.08), 0 0 0 1px rgba(108,99,255,0.18) !important;
         }}
         [data-testid="stChatInput"] textarea,
         [data-testid="stChatInput"] textarea:focus {{
@@ -446,9 +446,9 @@ def inject_css():
         }}
         [data-testid="stChatInputSubmitButton"] {{
             background: linear-gradient(120deg, {COLOR_ACCENT}, {COLOR_VIOLET}) !important;
-            color: #05060F !important;
+            color: #FFFFFF !important;
         }}
-        [data-testid="stChatInputSubmitButton"]:hover {{ color: #05060F !important; }}
+        [data-testid="stChatInputSubmitButton"]:hover {{ color: #FFFFFF !important; }}
         /* Catch any BaseWeb / Emotion wrappers that inject white bg */
         [data-testid="stBottomBlockContainer"] [data-baseweb="textarea"],
         [data-testid="stBottomBlockContainer"] [data-baseweb="base-input"],
@@ -526,21 +526,21 @@ def inject_css():
         [data-testid="stPopoverBody"] {{
             border-radius: 12px;
             border: 1px solid {COLOR_BORDER};
-            background: #0B0F22 !important;
+            background: #FFFFFF !important;
         }}
 
         /* Primary action buttons anywhere */
         .stButton > button[kind="primary"] {{
             background: linear-gradient(120deg, {COLOR_ACCENT}, {COLOR_VIOLET}) !important;
-            color: #05060F !important;
+            color: #FFFFFF !important;
             border: none !important;
             border-radius: 8px;
             font-weight: 600 !important;
-            box-shadow: 0 0 16px rgba(34,211,238,0.25);
+            box-shadow: 0 0 16px rgba(108,99,255,0.25);
         }}
         .stButton > button[kind="primary"]:hover {{
             filter: brightness(1.08);
-            box-shadow: 0 0 22px rgba(34,211,238,0.4);
+            box-shadow: 0 0 22px rgba(108,99,255,0.4);
         }}
         .stButton > button[kind="secondary"] {{
             background: {COLOR_PAPER_RAISED} !important;
@@ -568,7 +568,7 @@ def inject_css():
             border-radius: 6px;
             padding: 0.3rem 0.6rem;
             color: {COLOR_INK_SOFT};
-            box-shadow: 0 2px 10px rgba(0,0,0,0.25);
+            box-shadow: 0 2px 10px rgba(30,30,60,0.10);
         }}
         .index-card.web {{ border-left-color: {COLOR_ACCENT}; }}
         .index-card a {{ color: {COLOR_INK_SOFT}; text-decoration: none; }}
@@ -618,15 +618,15 @@ def inject_css():
            console look used everywhere else.
            ========================================================== */
         div[data-testid="stDialog"] {{
-            background: rgba(2,3,10,0.72) !important;
+            background: rgba(27,28,46,0.35) !important;
             backdrop-filter: blur(4px);
         }}
         div[data-testid="stDialog"] > div,
         div[data-testid="stDialog"] div[role="dialog"] {{
-            background: linear-gradient(160deg, #0D1024 0%, #05060F 100%) !important;
+            background: linear-gradient(160deg, #FFFFFF 0%, #F3F4FB 100%) !important;
             border: 1px solid {COLOR_BORDER} !important;
             border-radius: 20px !important;
-            box-shadow: 0 30px 80px rgba(0,0,0,0.55), inset 0 1px 0 rgba(255,255,255,0.08) !important;
+            box-shadow: 0 30px 80px rgba(30,30,60,0.18), inset 0 1px 0 rgba(255,255,255,0.7) !important;
         }}
         div[data-testid="stDialog"] * {{
             color: {COLOR_INK};
@@ -666,10 +666,10 @@ def inject_css():
         }}
         div[data-baseweb="popover"] > div,
         div[data-testid="stPopoverBody"] {{
-            background: linear-gradient(160deg, #0D1024 0%, #05060F 100%) !important;
+            background: linear-gradient(160deg, #FFFFFF 0%, #F3F4FB 100%) !important;
             border: 1px solid {COLOR_BORDER} !important;
             border-radius: 14px !important;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5) !important;
+            box-shadow: 0 20px 50px rgba(30,30,60,0.15) !important;
         }}
         div[data-baseweb="popover"] * {{ color: {COLOR_INK}; }}
         div[data-baseweb="popover"] .stCaption,
@@ -705,9 +705,9 @@ def inject_css():
            Replaces the old horizontal toolbar pill row.
            ========================================================== */
         [data-testid="stSidebar"] {{
-            background: linear-gradient(165deg, rgba(13,16,36,0.97) 0%, rgba(5,6,15,0.99) 100%);
+            background: linear-gradient(165deg, rgba(255,255,255,0.97) 0%, rgba(247,247,252,0.99) 100%);
             border-right: 1px solid {COLOR_BORDER};
-            box-shadow: 14px 0 44px rgba(0,0,0,0.5), inset -1px 0 0 rgba(255,255,255,0.04);
+            box-shadow: 14px 0 44px rgba(30,30,60,0.06), inset -1px 0 0 rgba(255,255,255,0.6);
         }}
         [data-testid="stSidebar"] > div:first-child {{
             padding-top: 1.1rem;
@@ -728,10 +728,10 @@ def inject_css():
             width: 28px; height: 28px;
             display: flex; align-items: center; justify-content: center;
             background: linear-gradient(135deg, {COLOR_ACCENT}, {COLOR_VIOLET});
-            color: #05060F;
+            color: #FFFFFF;
             border-radius: 8px;
             font-size: 0.92rem;
-            box-shadow: 0 0 14px rgba(34,211,238,0.45);
+            box-shadow: 0 0 14px rgba(108,99,255,0.45);
         }}
         /* New chat — the one bold, "raised" action at the top, tilted
            slightly to match the console's 3D language and lifting
@@ -739,18 +739,18 @@ def inject_css():
         .st-key-sb_new_chat .stButton > button {{
             width: 100%;
             background: linear-gradient(135deg, {COLOR_ACCENT}, {COLOR_VIOLET}) !important;
-            color: #05060F !important;
+            color: #FFFFFF !important;
             font-weight: 700 !important;
             border: none !important;
             border-radius: 12px !important;
             padding: 0.6rem 0.9rem !important;
-            box-shadow: 0 8px 22px rgba(124,92,255,0.35), inset 0 1px 0 rgba(255,255,255,0.25) !important;
+            box-shadow: 0 8px 22px rgba(139,124,250,0.35), inset 0 1px 0 rgba(255,255,255,0.25) !important;
             transform: perspective(600px) rotateX(0deg) translateY(0);
             transition: transform 0.18s ease, box-shadow 0.18s ease !important;
         }}
         .st-key-sb_new_chat .stButton > button:hover {{
             transform: perspective(600px) rotateX(4deg) translateY(-2px) !important;
-            box-shadow: 0 14px 30px rgba(124,92,255,0.5), inset 0 1px 0 rgba(255,255,255,0.3) !important;
+            box-shadow: 0 14px 30px rgba(139,124,250,0.5), inset 0 1px 0 rgba(255,255,255,0.3) !important;
         }}
         /* Study-tool nav rows — flat, left-aligned list items rather
            than centered pills, the way a real sidebar nav reads. */
@@ -989,7 +989,7 @@ def animated_loader(steps=None):
         width: 35%; height: 100%; border-radius: 6px;
         background: linear-gradient(90deg, {COLOR_ACCENT}, {COLOR_VIOLET}, {COLOR_PINK});
         animation: loaderMove 1.3s ease-in-out infinite;
-        box-shadow: 0 0 10px rgba(34,211,238,0.5);
+        box-shadow: 0 0 10px rgba(108,99,255,0.5);
     }}
     @keyframes loaderMove {{
         0% {{ transform: translateX(-100%); }}

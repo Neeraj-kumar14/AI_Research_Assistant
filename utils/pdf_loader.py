@@ -1,5 +1,6 @@
 import os
 from collections import Counter
+from concurrent.futures import ThreadPoolExecutor
 
 import fitz  # PyMuPDF
 from PIL import Image
@@ -25,6 +26,20 @@ MAX_PDF_PAGES = int(os.getenv("MAX_PDF_PAGES", "300"))
 # just skipped (same as before this fix existed) rather than OCR'd.
 # Override via MAX_OCR_PAGES env var.
 MAX_OCR_PAGES = int(os.getenv("MAX_OCR_PAGES", "30"))
+
+# Max OCR pages processed concurrently. OCR was previously run in a
+# strict one-page-at-a-time loop: for a scanned document hitting the
+# MAX_OCR_PAGES cap, that meant paying the full EasyOCR (+ Mistral /
+# vision fallback, when triggered) latency 30 times in sequence — the
+# single slowest stage in the whole pipeline, run the least efficiently.
+# Running pages concurrently instead lets them overlap: EasyOCR's own
+# heavy inference is still bounded by CPU_JOB_SLOTS (utils/concurrency.py),
+# so this doesn't add new CPU contention there — it mainly wins by
+# letting the network-bound Mistral/vision fallback calls (and general
+# I/O waits) for one page overlap with another page's work instead of
+# blocking the whole document on each page in turn. Override via
+# OCR_MAX_WORKERS.
+OCR_MAX_WORKERS = int(os.getenv("OCR_MAX_WORKERS", "4"))
 
 # Render resolution for OCR fallback. 3x zoom (~216 DPI equivalent)
 # gives EasyOCR meaningfully more pixels per character than the old 2x
@@ -124,6 +139,11 @@ def _ocr_page(page):
     length matters because a full page of misread cursive can produce
     plenty of characters, just wrong ones throughout — length alone
     would miss that.
+
+    Called concurrently across pages (see OCR_MAX_WORKERS in load_pdf
+    below), so this function must not touch any shared mutable state —
+    it only reads its `page` argument and returns a string, which is
+    already the case here.
     """
     pix = page.get_pixmap(matrix=fitz.Matrix(_OCR_ZOOM, _OCR_ZOOM), alpha=False)
     image = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
@@ -153,66 +173,83 @@ def load_pdf(uploaded_file):
     which matters most on large (20-50MB) multi-page documents where
     this loop is run once per page.
 
-    Pages with a real text layer use that text directly. Pages with no
-    text layer at all (scanned/image-only pages) fall back to OCR, up
-    to MAX_OCR_PAGES — beyond that they're skipped, same as if OCR
-    didn't exist, so one huge scanned document can't stall the app for
-    everyone.
+    Pages with a real text layer use that text directly (fast,
+    sequential — pure PyMuPDF, no OCR, so there's nothing worth
+    parallelizing there). Pages with no usable text layer at all
+    (scanned/image-only or garbled pages) fall back to OCR, up to
+    MAX_OCR_PAGES — beyond that they're skipped, same as before, so
+    one huge scanned document can't stall the app for everyone.
+
+    The OCR stage itself now runs up to OCR_MAX_WORKERS pages at once
+    instead of one page at a time — previously the biggest single
+    source of slow, "stuck" feeling uploads for large scanned PDFs.
     """
 
     pdf_bytes = uploaded_file.read()
     doc = fitz.open(stream=pdf_bytes, filetype="pdf")
 
-    pages = []
     total_pages = doc.page_count
     truncated = total_pages > MAX_PDF_PAGES
-    ocr_pages_used = 0
-    ocr_skipped = 0
+    limit = min(total_pages, MAX_PDF_PAGES)
 
-    for page_num, page in enumerate(doc, start=1):
+    # Pass 1 (fast, sequential): pure text-layer extraction for every
+    # page in scope. This is cheap regardless of page count — it just
+    # sorts pages into "has usable text" vs. "needs OCR".
+    text_pages = {}       # page_num -> extracted text
+    ocr_candidates = []   # (page_num, page, fallback_text, garbled) needing OCR, in order
 
-        if page_num > MAX_PDF_PAGES:
-            break
-
+    for page_num in range(1, limit + 1):
+        page = doc[page_num - 1]
         text = page.get_text()
         stripped = text.strip() if text else ""
         garbled = len(stripped) >= MIN_TEXT_LAYER_CHARS and _is_garbled_text(stripped)
 
         if len(stripped) >= MIN_TEXT_LAYER_CHARS and not garbled:
-            pages.append(
-                {
-                    "page": page_num,
-                    "text": text,
-                    "source": uploaded_file.name
-                }
-            )
-            continue
-
-        # No usable text layer — either a scanned page, one with only a
-        # stray character or two of "real" text, or (see `garbled`
-        # above) a page whose text layer is corrupted by a broken font
-        # mapping. Fall back to OCR, up to the per-document OCR cap.
-        if ocr_pages_used < MAX_OCR_PAGES:
-            ocr_pages_used += 1
-            ocr_text = _ocr_page(page)
-            # Prefer OCR output, but don't throw away a short-but-real
-            # text layer if OCR itself came back empty (e.g. a mostly
-            # blank page with just a page number). Never fall back to a
-            # *garbled* text layer though — that's not real content and
-            # is worse than having nothing for this page.
-            final_text = ocr_text if ocr_text and ocr_text.strip() else ("" if garbled else stripped)
-            if final_text:
-                pages.append(
-                    {
-                        "page": page_num,
-                        "text": final_text,
-                        "source": uploaded_file.name
-                    }
-                )
+            text_pages[page_num] = text
         else:
-            ocr_skipped += 1
+            ocr_candidates.append((page_num, page, stripped, garbled))
+
+    # Pass 2 (slow, now parallel): OCR only the pages that need it, up
+    # to MAX_OCR_PAGES. Pages beyond the cap are left out entirely
+    # (never OCR'd) and counted below so the user is told about them,
+    # same intent as before — just correctly counted now.
+    to_ocr = ocr_candidates[:MAX_OCR_PAGES]
+    capped_out = ocr_candidates[MAX_OCR_PAGES:]
+
+    ocr_results = {}       # page_num -> final text
+    ocr_empty_count = 0    # attempted OCR, came back with nothing usable
+
+    if to_ocr:
+        with ThreadPoolExecutor(max_workers=min(OCR_MAX_WORKERS, len(to_ocr))) as pool:
+            future_to_meta = {
+                pool.submit(_ocr_page, page): (page_num, stripped, garbled)
+                for page_num, page, stripped, garbled in to_ocr
+            }
+            for future in future_to_meta:
+                page_num, stripped, garbled = future_to_meta[future]
+                ocr_text = future.result()
+                # Prefer OCR output, but don't throw away a short-but-real
+                # text layer if OCR itself came back empty (e.g. a mostly
+                # blank page with just a page number). Never fall back to
+                # a *garbled* text layer though — that's not real content
+                # and is worse than having nothing for this page.
+                final_text = ocr_text if ocr_text and ocr_text.strip() else ("" if garbled else stripped)
+                if final_text:
+                    ocr_results[page_num] = final_text
+                else:
+                    ocr_empty_count += 1
 
     doc.close()
+
+    # Reassemble in original page order.
+    pages = []
+    for page_num in range(1, limit + 1):
+        if page_num in text_pages:
+            pages.append({"page": page_num, "text": text_pages[page_num], "source": uploaded_file.name})
+        elif page_num in ocr_results:
+            pages.append({"page": page_num, "text": ocr_results[page_num], "source": uploaded_file.name})
+        # else: no usable text and either not OCR'd (hit the cap) or
+        # OCR produced nothing — skipped, same as before.
 
     if truncated:
         pages.append(
@@ -228,15 +265,23 @@ def load_pdf(uploaded_file):
             }
         )
 
+    # Total pages the user is effectively missing content for: pages
+    # that were OCR'd but yielded nothing usable, plus pages that never
+    # got attempted at all because the upload hit the OCR cap. (The
+    # cap-skipped count was previously dropped entirely — pages beyond
+    # MAX_OCR_PAGES were silently skipped with no note at all.)
+    ocr_skipped = ocr_empty_count + len(capped_out)
+
     if ocr_skipped:
         pages.append(
             {
                 "page": pages[-1]["page"] + 1 if pages else 1,
                 "text": (
                     f"[Note: {ocr_skipped} scanned page(s) had no text layer "
-                    f"and were not OCR'd because this upload hit the "
-                    f"{MAX_OCR_PAGES}-page OCR limit. Their content is "
-                    f"missing from what you can ask about.]"
+                    f"and were not OCR'd or produced no readable text, "
+                    f"partly because this upload hit the {MAX_OCR_PAGES}-page "
+                    f"OCR limit. Their content is missing from what you can "
+                    f"ask about.]"
                 ),
                 "source": uploaded_file.name,
             }
